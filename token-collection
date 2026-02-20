@@ -3,17 +3,21 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local Service = game:GetService("ReplicatedStorage")
 
+-- Folder
+local tokensFolder = workspace:WaitForChild("Items")
+	:WaitForChild("Tokens")
+	:WaitForChild("Client")
+
 -- Settings
-local COLLECT_COOLDOWN = 20 * 60 -- 20 minutes
+local COLLECT_COOLDOWN = 10 * 60
 
--- Collectibles
-local collect = Service.Remotes.Potion
-local args = {"Collect","TravelToken1"}
-local args1 = {"Collect","TravelToken2"}
-local args2 = {"Collect","Luck"}
-local args3 = {"Collect","HatchTime"}
+-- Remote
+local collect = Service.Remotes:WaitForChild("Potion")
 
--- Teleport Function
+-- State
+local priorityActive = false
+
+-- Teleport
 local function teleportToPart(part)
 	if not part or not part:IsA("BasePart") then return end
 	
@@ -23,32 +27,32 @@ local function teleportToPart(part)
 	hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
 end
 
--- State Lock
-local priorityActive = false
+-- ===============================
+-- Travel + Potions Loop
+-- ===============================
 
--- Anti AFK
-local vu = game:GetService("VirtualUser")
-game:GetService("Players").LocalPlayer.Idled:connect(function()
-   vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-   wait(1)
-   vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
-end)
-
--- Travel Tokens + Potions
 task.spawn(function()
 	while true do
-		task.wait()
-		    priorityActive = true
-			collect:FireServer(unpack(args))
-            collect:FireServer(unpack(args1))
-            collect:FireServer(unpack(args2))
-            collect:FireServer(unpack(args3))
+		
+		priorityActive = true
+		
+		collect:FireServer("Collect","TravelToken1")
+		collect:FireServer("Collect","TravelToken2")
+		collect:FireServer("Collect","Luck")
+		collect:FireServer("Collect","HatchTime")
+
+		task.wait(5)
+
 		priorityActive = false
-        task.wait(TRAVEL_COOLDOWN)
+		
+		task.wait(COLLECT_COOLDOWN)
 	end
 end)
 
+-- ===============================
 -- Trait Tokens
+-- ===============================
+
 local function isValidToken(part)
 	if not part:IsA("BasePart") then return false end
 	local number = tonumber(part.Name)
@@ -57,13 +61,13 @@ end
 
 -- Existing Tokens
 for _, child in ipairs(tokensFolder:GetChildren()) do
-	if isValidToken(child) and not priorityActive then
+	if isValidToken(child) then
 		teleportToPart(child)
-		break
+		task.wait(0.2)
 	end
 end
 
--- New Tokens
+-- New Token
 tokensFolder.ChildAdded:Connect(function(child)
 	if priorityActive then return end
 	
