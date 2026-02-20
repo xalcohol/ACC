@@ -1,0 +1,73 @@
+-- Services
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local Service = game:GetService("ReplicatedStorage")
+
+-- Settings
+local COLLECT_COOLDOWN = 20 * 60 -- 20 minutes
+
+-- Collectibles
+local collect = Service.Remotes.Potion
+local args = {"Collect","TravelToken1"}
+local args1 = {"Collect","TravelToken2"}
+local args2 = {"Collect","Luck"}
+local args3 = {"Collect","HatchTime"}
+
+-- Teleport Function
+local function teleportToPart(part)
+	if not part or not part:IsA("BasePart") then return end
+	
+	local character = player.Character or player.CharacterAdded:Wait()
+	local hrp = character:WaitForChild("HumanoidRootPart")
+	
+	hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+end
+
+-- State Lock
+local priorityActive = false
+
+-- Anti AFK
+local vu = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:connect(function()
+   vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+   wait(1)
+   vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+end)
+
+-- Travel Tokens + Potions
+task.spawn(function()
+	while true do
+		task.wait()
+		    priorityActive = true
+			collect:FireServer(unpack(args))
+            collect:FireServer(unpack(args1))
+            collect:FireServer(unpack(args2))
+            collect:FireServer(unpack(args3))
+		priorityActive = false
+        task.wait(TRAVEL_COOLDOWN)
+	end
+end)
+
+-- Trait Tokens
+local function isValidToken(part)
+	if not part:IsA("BasePart") then return false end
+	local number = tonumber(part.Name)
+	return number and number >= 1 and number <= 30
+end
+
+-- Existing Tokens
+for _, child in ipairs(tokensFolder:GetChildren()) do
+	if isValidToken(child) and not priorityActive then
+		teleportToPart(child)
+		break
+	end
+end
+
+-- New Tokens
+tokensFolder.ChildAdded:Connect(function(child)
+	if priorityActive then return end
+	
+	if isValidToken(child) then
+		teleportToPart(child)
+	end
+end)
