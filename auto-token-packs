@@ -1,0 +1,68 @@
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local Service = game:GetService("ReplicatedStorage")
+
+-- Settings
+local TOGGLE_KEY = Enum.KeyCode.P
+local TARGET_KEY = Enum.KeyCode.E
+local PRESS_INTERVAL = 0.7 -- seconds between presses
+
+local enabled = false
+local lastPress = 0
+
+local COLLECT_COOLDOWN = 10 * 60
+
+-- Remote
+local collect = Service.Remotes:WaitForChild("Potion")
+
+-- State
+local priorityActive = false
+
+-- ===============================
+-- Travel + Potions Loop
+-- ===============================
+
+task.spawn(function()
+	while true do
+		
+		priorityActive = true
+		
+		collect:FireServer("Collect","TravelToken1")
+		collect:FireServer("Collect","TravelToken2")
+		collect:FireServer("Collect","Luck")
+		collect:FireServer("Collect","HatchTime")
+
+
+		task.wait(5)
+
+
+		priorityActive = false
+		
+		task.wait(COLLECT_COOLDOWN)
+	end
+end)
+
+-- Toggle when P is pressed
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	
+	if input.KeyCode == TOGGLE_KEY then
+		enabled = not enabled
+		print("Auto E:", enabled and "ON" or "OFF")
+	end
+end)
+
+-- Loop that presses E
+RunService.RenderStepped:Connect(function()
+	if not enabled then return end
+	
+	if tick() - lastPress >= PRESS_INTERVAL then
+		lastPress = tick()
+		
+		-- Simulate key press
+		VirtualInputManager:SendKeyEvent(true, TARGET_KEY, false, game)
+		VirtualInputManager:SendKeyEvent(false, TARGET_KEY, false, game)
+	end
+end)
