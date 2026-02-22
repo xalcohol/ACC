@@ -1,0 +1,119 @@
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- Remote
+local purchaseCard = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Card")
+local PacksFolder = Workspace:WaitForChild("Client"):WaitForChild("Packs")
+
+-- Track processed packs
+local ProcessedPacks = {}
+
+-- Always-buy packs (Rule 2)
+local BUY_ALWAYS_PACKS = {
+    Pirate = true, Ninja = true, Soul = true, Dragon = true,
+    Sorcerer = true, Slayer = true, Fire = true,
+    Hero = true, Hunter = true
+}
+
+-- Diamond-only packs (Rule 3)
+local DIAMOND_PACKS = {
+    Flight = true, Chainsaw = true, Titan = true, Solo = true,
+    Note = true, Slime = true
+}
+
+-- Emerald-only packs (Rule 4)
+local EMERALD_PACKS = {
+    Note = true, Slime = true
+}
+
+-- Void-only packs (Rule 5)
+local VOID_PACKS = {
+    Note = true, Slime = true
+}
+
+-- Core pack check
+local function checkPack(packModel)
+    if not packModel then return end
+    if not packModel:IsA("Model") then return end
+
+    local packId = tostring(packModel.Name)
+    if not string.match(packId, "^%d+%-%d+$") then return end
+    if ProcessedPacks[packId] then return end
+
+    local shouldBuy = false
+
+    local children = packModel:GetChildren()
+    for i = 1, #children do
+        local child = children[i]
+
+        -- Rule 1: Rainbow
+        for j = 1, #child:GetChildren() do
+            if child:GetChildren()[j].Name == "Rainbow" then
+                shouldBuy = true
+                break
+            end
+        end
+
+        -- Rule 2: Always-buy packs
+        if not shouldBuy and BUY_ALWAYS_PACKS[child.Name] then
+            shouldBuy = true
+        end
+
+        -- Rule 3: Diamond-only packs
+        if not shouldBuy and DIAMOND_PACKS[child.Name] then
+            for k = 1, #child:GetChildren() do
+                if child:GetChildren()[k].Name == "Diamond" then
+                    shouldBuy = true
+                    break
+                end
+            end
+        end
+
+        -- Rule 4: Emerald-only packs
+        if not shouldBuy and EMERALD_PACKS[child.Name] then
+            for k = 1, #child:GetChildren() do
+                if child:GetChildren()[k].Name == "Emerald" then
+                    shouldBuy = true
+                    break
+                end
+            end
+        end
+
+        -- Rule 5: Void-only packs
+        if not shouldBuy and VOID_PACKS[child.Name] then
+            for k = 1, #child:GetChildren() do
+                if child:GetChildren()[k].Name == "Void" then
+                    shouldBuy = true
+                    break
+                end
+            end
+        end
+
+        if shouldBuy then
+            break
+        end
+    end
+
+    if shouldBuy then
+        ProcessedPacks[packId] = true
+        print("PURCHASING PACK:", packId)
+        purchaseCard:FireServer("BuyPack", packId)
+    end
+end
+
+-- Event handlers
+local function onChildAdded(child)
+    task.wait(0.05)
+    checkPack(child)
+end
+
+local function onChildRemoved(child)
+    if child and child.Name then
+        ProcessedPacks[child.Name] = nil
+    end
+end
+
+-- Connect events
+PacksFolder.ChildAdded:Connect(onChildAdded)
+PacksFolder.ChildRemoved:Connect(onChildRemoved)
