@@ -1,0 +1,30 @@
+-- Services
+local RunService = game:GetService("RunService")
+local Service = game:GetService("ReplicatedStorage")
+
+-- Settings
+local COLLECT_COOLDOWN = 10 * 60
+
+-- Remote
+local collect = Service.Remotes:WaitForChild("Potion")
+
+-- State
+local priorityActive = false
+
+task.spawn(function()
+	while true do
+		
+		priorityActive = true
+		
+		collect:FireServer("Collect","TravelToken1")
+		collect:FireServer("Collect","TravelToken2")
+		collect:FireServer("Collect","Luck")
+		collect:FireServer("Collect","HatchTime")
+
+		task.wait(5)
+
+		priorityActive = false
+		
+		task.wait(COLLECT_COOLDOWN)
+	end
+end)
