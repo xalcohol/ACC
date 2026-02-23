@@ -30,7 +30,7 @@ local PLACE_EVERY_N_STEPS = 1    -- attempt placing every N teleports
 local PACK_NAME = "Note-Emerald"
 
 -- NEW: time-based place limiter (replaces PLACE_WAIT blocking)
-local PLACE_COOLDOWN = 0.18      -- seconds between Place fires (try 0.08 to 0.20)
+local PLACE_COOLDOWN = 0.08      -- seconds between Place fires (try 0.08 to 0.20)
 
 -- Toggle key
 local TOGGLE_KEY = Enum.KeyCode.P
