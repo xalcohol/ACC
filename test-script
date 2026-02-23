@@ -1,39 +1,55 @@
 --// LocalScript (StarterPlayerScripts)
--- Zigzag teleport scan across a quad and place packs at each step.
+-- Phase A: Apply 40 HatchTime potions
+-- Phase B: Teleport to placed packs in Workspace/Plots/1/Packs and press E to open
+-- (Your zigzag placer remains included for later unification.)
 
 -- Services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 
--- Remote
-local cardPack = ReplicatedStorage.Remotes:WaitForChild("Card")
+-- Remotes
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local cardPack = Remotes:WaitForChild("Card")
+local potionRemote = Remotes:WaitForChild("Potion")
 
--- === QUAD CORNERS (same ones you provided) ===
--- Using the perimeter order that matched your visual outline:
--- B(top-left) -> C(top-right) -> D(bottom-right) -> A(bottom-left)
-local A = Vector3.new(-622.432373, 7.22039652, -92.1760025)     -- bottom-left-ish
-local B = Vector3.new(-621.693604, 7.1538558,  -150.819366)    -- top-left
-local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)    -- top-right
-local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)    -- bottom-right-ish
+-- === QUAD CORNERS (zigzag placement area) ===
+local A = Vector3.new(-622.432373, 7.22039652, -92.1760025)
+local B = Vector3.new(-621.693604, 7.1538558,  -150.819366)
+local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)
+local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
--- === TUNING ===
-local STEP_STUDS = 7.0           -- distance between columns
-local ROW_STEP_STUDS = 7.0       -- distance between rows
-local Y_LIFT = 2.5               -- lift HRP above the surface when teleporting
-
-local TELEPORT_WAIT = 0.08       -- 0 = as fast as possible; >0 adds stability delay
-local PLACE_EVERY_N_STEPS = 1    -- attempt placing every N teleports
+-- === TUNING (zigzag) ===
+local STEP_STUDS = 7.0
+local ROW_STEP_STUDS = 7.0
+local Y_LIFT = 2.5
+local TELEPORT_WAIT = 0.08
+local PLACE_EVERY_N_STEPS = 1
 local PACK_NAME = "Note-Emerald"
+local PLACE_COOLDOWN = 0.08
 
--- NEW: time-based place limiter (replaces PLACE_WAIT blocking)
-local PLACE_COOLDOWN = 0.08      -- seconds between Place fires (try 0.08 to 0.20)
+-- === TUNING (follow-ups) ===
+local POTION_NAME = "HatchTime1"
+local POTION_USES = 40
+local POTION_DELAY = 0.10       -- delay between potion fires (raise if throttled)
 
--- Toggle key
-local TOGGLE_KEY = Enum.KeyCode.P
+local OPEN_KEY = Enum.KeyCode.E
+local OPEN_AFTER_TELEPORT_DELAY = 0.12  -- let UI/prompt settle before pressing E
+local BETWEEN_PACKS_DELAY = 0.05        -- tiny pacing between packs
+local OPEN_PRESS_DURATION = 0.05        -- how long to hold E down
+
+-- Plot path
+local PLOTS_FOLDER_NAME = "Plots"
+local PLOT_ID_FOLDER_NAME = "1"
+local PLACED_PACKS_FOLDER_NAME = "Packs"
+
+-- Toggle key for running follow-ups now (separate from zigzag for the moment)
+local RUN_FOLLOWUPS_KEY = Enum.KeyCode.O  -- press O to run potion+open flow
+local RUN_ZIGZAG_KEY = Enum.KeyCode.P     -- your existing zigzag toggle
 
 -- === Helpers ===
 local function getCharacterParts()
@@ -47,12 +63,10 @@ local function v3Lerp(a, b, t)
 	return a + (b - a) * t
 end
 
--- Distance-based step count (at least 1)
 local function stepsForDistance(dist, step)
 	return math.max(1, math.floor(dist / step + 0.5))
 end
 
--- Teleport HRP to world position (keep facing along row direction)
 local function teleportTo(hrp, pos, lookDir)
 	local p = pos + Vector3.new(0, Y_LIFT, 0)
 	if lookDir and lookDir.Magnitude > 1e-6 then
@@ -62,14 +76,127 @@ local function teleportTo(hrp, pos, lookDir)
 	end
 end
 
--- Place pack
 local function placePack()
 	cardPack:FireServer("Place", PACK_NAME)
 end
 
--- === Zigzag scan ===
-local running = false
-local scanThread = nil
+local function pressKey(keyCode, holdSeconds)
+	-- KeyDown
+	VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+	task.wait(holdSeconds or 0.03)
+	-- KeyUp
+	VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+end
+
+local function getModelWorldPos(model: Model): Vector3?
+	-- Prefer pivot (works even without PrimaryPart)
+	if model and model:IsA("Model") then
+		local ok, pivot = pcall(function()
+			return model:GetPivot()
+		end)
+		if ok and pivot then
+			return pivot.Position
+		end
+
+		if model.PrimaryPart then
+			return model.PrimaryPart.Position
+		end
+
+		local pp = model:FindFirstChildWhichIsA("BasePart", true)
+		if pp then
+			return pp.Position
+		end
+	end
+	return nil
+end
+
+local function getPlacedPacksFolder()
+	local plots = Workspace:FindFirstChild(PLOTS_FOLDER_NAME)
+	if not plots then return nil end
+	local plot = plots:FindFirstChild(PLOT_ID_FOLDER_NAME)
+	if not plot then return nil end
+	local packs = plot:FindFirstChild(PLACED_PACKS_FOLDER_NAME)
+	return packs
+end
+
+local function applyPotions(count)
+	print(("[FollowUps] Applying %d potions (%s)..."):format(count, POTION_NAME))
+	for i = 1, count do
+		potionRemote:FireServer("Apply", POTION_NAME)
+		if POTION_DELAY > 0 then
+			task.wait(POTION_DELAY)
+		end
+	end
+	print("[FollowUps] Potion phase complete.")
+end
+
+local function openAllPlacedPacks()
+	local _, hrp = getCharacterParts()
+	if not hrp then
+		warn("[FollowUps] No HumanoidRootPart found.")
+		return
+	end
+
+	local packsFolder = getPlacedPacksFolder()
+	if not packsFolder then
+		warn(("[FollowUps] Could not find folder: Workspace/%s/%s/%s"):format(
+			PLOTS_FOLDER_NAME, PLOT_ID_FOLDER_NAME, PLACED_PACKS_FOLDER_NAME
+		))
+		return
+	end
+
+	local models = {}
+	for _, child in ipairs(packsFolder:GetChildren()) do
+		if child:IsA("Model") then
+			table.insert(models, child)
+		end
+	end
+
+	print(("[FollowUps] Found %d placed pack models to open."):format(#models))
+	if #models == 0 then return end
+
+	-- Optional optimization: open nearest-next to reduce travel
+	local function distToHRP(m)
+		local p = getModelWorldPos(m)
+		if not p then return math.huge end
+		return (p - hrp.Position).Magnitude
+	end
+
+	-- Greedy nearest-neighbor ordering
+	local ordered = {}
+	local remaining = table.clone(models)
+	while #remaining > 0 do
+		table.sort(remaining, function(m1, m2)
+			return distToHRP(m1) < distToHRP(m2)
+		end)
+		table.insert(ordered, table.remove(remaining, 1))
+	end
+
+	for i, model in ipairs(ordered) do
+		local pos = getModelWorldPos(model)
+		if pos then
+			print(("[FollowUps] (%d/%d) Teleporting to: %s"):format(i, #ordered, model.Name))
+
+			-- Face the model so "E" prompt is more likely to register (if directional)
+			local lookDir = (pos - hrp.Position)
+			teleportTo(hrp, pos, lookDir)
+
+			task.wait(OPEN_AFTER_TELEPORT_DELAY)
+			pressKey(OPEN_KEY, OPEN_PRESS_DURATION)
+
+			if BETWEEN_PACKS_DELAY > 0 then
+				task.wait(BETWEEN_PACKS_DELAY)
+			end
+		else
+			warn("[FollowUps] Could not resolve world position for model:", model.Name)
+		end
+	end
+
+	print("[FollowUps] Open phase complete.")
+end
+
+-- === Zigzag scan (unchanged logic, just included for later unification) ===
+local zigzagRunning = false
 
 local function zigzagScan()
 	local _, hrp = getCharacterParts()
@@ -80,11 +207,6 @@ local function zigzagScan()
 
 	print("[Zigzag] Starting scan... (toggle with P to stop)")
 
-	-- Define edges:
-	-- Top edge: B -> C
-	-- Bottom edge: A -> D
-	-- Left edge: B -> A
-	-- Right edge: C -> D
 	local topLen = (C - B).Magnitude
 	local leftLen = (A - B).Magnitude
 
@@ -95,25 +217,19 @@ local function zigzagScan()
 	print(string.format("[Zigzag] TELEPORT_WAIT=%.3f PLACE_COOLDOWN=%.3f", TELEPORT_WAIT, PLACE_COOLDOWN))
 
 	local globalStep = 0
-	local nextPlaceTime = 0 -- NEW: rate limit timer
+	local nextPlaceTime = 0
 
 	for r = 0, rows do
-		if not running then break end
+		if not zigzagRunning then break end
 
 		local rt = r / rows
-
-		-- Row endpoints are interpolated down the left/right edges
-		local rowStart = v3Lerp(B, A, rt) -- left side
-		local rowEnd   = v3Lerp(C, D, rt) -- right side
-
-		-- Row direction (for facing)
+		local rowStart = v3Lerp(B, A, rt)
+		local rowEnd   = v3Lerp(C, D, rt)
 		local rowDir = (rowEnd - rowStart)
-
-		-- Zigzag direction
 		local leftToRight = (r % 2 == 0)
 
 		for c = 0, cols do
-			if not running then break end
+			if not zigzagRunning then break end
 
 			local ct = c / cols
 			local t = leftToRight and ct or (1 - ct)
@@ -121,14 +237,11 @@ local function zigzagScan()
 
 			teleportTo(hrp, pos, rowDir)
 
-			-- Only wait if TELEPORT_WAIT > 0
 			if TELEPORT_WAIT > 0 then
 				task.wait(TELEPORT_WAIT)
 			end
 
 			globalStep += 1
-
-			-- Attempt to place based on step cadence, but rate-limited by time
 			if (globalStep % PLACE_EVERY_N_STEPS) == 0 then
 				local now = os.clock()
 				if now >= nextPlaceTime then
@@ -140,24 +253,46 @@ local function zigzagScan()
 	end
 
 	print("[Zigzag] Scan finished.")
-	running = false
+	zigzagRunning = false
 end
 
--- Toggle handler
-local function toggle()
-	running = not running
-	print("[Zigzag] Running:", running)
-
-	if running then
-		scanThread = task.spawn(zigzagScan)
+-- === Follow-ups runner ===
+local followupsRunning = false
+local function runFollowups()
+	if followupsRunning then
+		print("[FollowUps] Already running.")
+		return
 	end
+	followupsRunning = true
+
+	task.spawn(function()
+		print("[FollowUps] Starting potion + open flow...")
+
+		-- Phase A
+		applyPotions(POTION_USES)
+
+		-- Phase B
+		openAllPlacedPacks()
+
+		print("[FollowUps] All done.")
+		followupsRunning = false
+	end)
 end
 
+-- Input binds
 UserInputService.InputBegan:Connect(function(input, gp)
 	if gp then return end
-	if input.KeyCode == TOGGLE_KEY then
-		toggle()
+
+	if input.KeyCode == RUN_ZIGZAG_KEY then
+		zigzagRunning = not zigzagRunning
+		print("[Zigzag] Running:", zigzagRunning)
+		if zigzagRunning then
+			task.spawn(zigzagScan)
+		end
+
+	elseif input.KeyCode == RUN_FOLLOWUPS_KEY then
+		runFollowups()
 	end
 end)
 
-print("[Zigzag] Loaded. Press P to start/stop.")
+print("[Loaded] P = toggle zigzag place | O = run follow-ups (40 potions then open placed packs)")
