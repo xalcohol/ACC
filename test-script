@@ -21,11 +21,11 @@ local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)    -- top-right
 local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)    -- bottom-right-ish
 
 -- === TUNING ===
-local STEP_STUDS = 5          -- "inch by inch" (use 0.5 for denser)
-local ROW_STEP_STUDS = 5.0      -- how far down between rows
+local STEP_STUDS = 7          -- "inch by inch" (use 0.5 for denser)
+local ROW_STEP_STUDS = 7.0      -- how far down between rows
 local Y_LIFT = 2.5              -- lift HRP above the surface when teleporting
 local TELEPORT_WAIT = 0.03      -- time between teleports (stability)
-local PLACE_WAIT = 1         -- time between place calls (rate/replication)
+local PLACE_WAIT = .3         -- time between place calls (rate/replication)
 local PLACE_EVERY_N_STEPS = 1   -- place every step (set 2/3/etc to thin out)
 local PACK_NAME = "Note-Emerald"
 
