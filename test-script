@@ -1,8 +1,14 @@
 --// LocalScript (StarterPlayerScripts)
--- MERGED: Token collector (always-on) + Pack scanner/buyer (always-on) + Pack placer/opener loop (toggle P)
--- Added:
---  - DEBUG_SCANNER toggle (turn on scanner prints only when needed)
---  - Post-open drain: after potions + opening, keep scanning Packs folder and opening remaining models until empty (with safety caps)
+-- MERGED:
+-- 1) Token collector (always-on)
+-- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
+-- 3) Pack placer/opener loop (toggle P)
+--
+-- IMPORTANT:
+-- - No Tool-reading / toolname detection (per your request).
+-- - Placement uses the fixed Emerald pack names you provided.
+-- - Hotbar press is ALWAYS "1" only (never 2-6).
+-- - Real 30s failsafe windows (not resetting each sweep).
 
 --========================
 -- Services
@@ -92,19 +98,15 @@ end
 -- SECTION 2: PACK SCANNER/BUYER (always-on, debug-toggle prints)
 --========================
 do
-	-- Paths
 	local clientFolder = Workspace:WaitForChild("Client")
 	local packsFolder = clientFolder:WaitForChild("Packs")
 
 	local function sPrint(...)
-		if DEBUG_SCANNER then
-			print(...)
-		end
+		if DEBUG_SCANNER then print(...) end
 	end
 
 	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
 
-	-- Scenario 2: Always-buy packs (by IDENTITY MESH name)
 	local ALWAYS_BUY = {
 		Pirate = true,
 		Ninja = true,
@@ -117,7 +119,6 @@ do
 		Hunter = true
 	}
 
-	-- Scenario 3: Only buy if "Diamond" mutation exists
 	local DIAMOND_ONLY = {
 		Flight = true,
 		Chainsaw = true,
@@ -158,42 +159,36 @@ do
 						end
 					end
 
-					-- Priority 1: Rainbow (any pack)
 					if hasRainbow then
 						sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
 						buyPack(model.Name)
 						return
 					end
 
-					-- Priority 2: Always-buy packs
 					if ALWAYS_BUY[descendant.Name] then
 						sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
 						buyPack(model.Name)
 						return
 					end
 
-					-- Priority 3: Diamond-only packs
 					if DIAMOND_ONLY[descendant.Name] then
 						if hasDiamond then
 							sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
 							buyPack(model.Name)
-							return
 						else
 							sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-							return
 						end
+						return
 					end
 
-					-- Priority 4: Note / Slime (Emerald, Void, or Diamond)
 					if descendant.Name == "Note" or descendant.Name == "Slime" then
 						if hasDiamond or hasEmerald or hasVoid then
 							sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
 							buyPack(model.Name)
-							return
 						else
 							sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-							return
 						end
+						return
 					end
 
 					sPrint("     Nothing matched. Skipping pack.")
@@ -203,41 +198,19 @@ do
 		end
 	end
 
-	local function initialSweep()
-		sPrint("\n[Scanner] Initial sweep starting...")
-
-		local children = packsFolder:GetChildren()
-		sPrint("[Scanner] Found", #children, "existing children to scan.")
-
-		for _, child in ipairs(children) do
-			if child:IsA("Model") then
-				sPrint("\n[Scanner] (Sweep) Existing model found:")
-				sPrint("Name:", child.Name)
-				sPrint("Class:", child.ClassName)
-				sPrint("-------------------------")
-				scanForMutation(child)
-			end
+	-- Initial sweep
+	for _, child in ipairs(packsFolder:GetChildren()) do
+		if child:IsA("Model") then
+			scanForMutation(child)
 		end
-
-		sPrint("\n[Scanner] Initial sweep complete.")
 	end
 
-	initialSweep()
-
+	-- Live scan
 	packsFolder.ChildAdded:Connect(function(child)
-		sPrint("\n[Scanner] Something spawned:")
-		sPrint("Name:", child.Name)
-		sPrint("Class:", child.ClassName)
-		sPrint("-------------------------")
-
 		if child:IsA("Model") then
-			-- Optional micro-wait if replication ever races:
-			-- task.wait(0.05)
 			scanForMutation(child)
 		end
 	end)
-
-	sPrint("[Scanner] Listening for new children...")
 end
 
 --========================
@@ -245,13 +218,12 @@ end
 --========================
 do
 	-- === QUAD CORNERS ===
-	-- B(top-left) -> C(top-right) -> D(bottom-right) -> A(bottom-left)
 	local QA = Vector3.new(-622.432373, 7.22039652, -92.1760025)
 	local QB = Vector3.new(-621.693604, 7.1538558,  -150.819366)
 	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
-	-- Pack order + hotbar mapping (exact)
+	-- Pack names (fixed order you provided)
 	local PACK_SEQUENCE = {
 		"Slime-Emerald",
 		"Note-Emerald",
@@ -260,16 +232,8 @@ do
 		"Bizarre-Emerald",
 		"Geass-Emerald",
 	}
-	local HOTBAR_KEYS = {
-		Enum.KeyCode.One,
-		Enum.KeyCode.Two,
-		Enum.KeyCode.Three,
-		Enum.KeyCode.Four,
-		Enum.KeyCode.Five,
-		Enum.KeyCode.Six,
-	}
 
-	-- Tuning (keep your chosen values)
+	-- Tuning (your current working values)
 	local STEP_STUDS = 7.0
 	local ROW_STEP_STUDS = 7.0
 	local Y_LIFT = 2.5
@@ -289,13 +253,16 @@ do
 	local BETWEEN_PACKS_DELAY = 0.05
 	local OPEN_PRESS_DURATION = 0.05
 
-	-- Post-open drain (NEW)
+	-- Failsafes (updated)
+	local NO_MODEL_TIMEOUT = 30.0         -- TRUE 30-second window per attempt
+	local FAILS_PER_PACK = 3              -- after 3 failed 30s attempts, move to next pack
+
+	-- Post-open drain (kept)
 	local POST_OPEN_MAX_PASSES = 12
 	local POST_OPEN_PASS_PAUSE = 0.15
 	local POST_OPEN_STUCK_LIMIT = 2
 
-	-- Failsafes
-	local NO_MODEL_TIMEOUT = 30.0 -- seconds window after placing
+	-- Toggle key
 	local TOGGLE_KEY = Enum.KeyCode.P
 
 	-- Placed packs folder path
@@ -303,7 +270,7 @@ do
 	local PLOT_ID_FOLDER_NAME = "1"
 	local PLACED_PACKS_FOLDER_NAME = "Packs"
 
-	-- Internal state
+	-- State
 	local running = false
 	local currentPackName = PACK_SEQUENCE[1]
 
@@ -313,13 +280,6 @@ do
 			hrp.CFrame = CFrame.lookAt(p, p + lookDir.Unit)
 		else
 			hrp.CFrame = CFrame.new(p)
-		end
-	end
-
-	local function selectHotbar(slotIndex: number)
-		local key = HOTBAR_KEYS[slotIndex]
-		if key then
-			pressKey(key, 0.03)
 		end
 	end
 
@@ -334,7 +294,6 @@ do
 	local function getPlacedPackModels()
 		local folder = getPlacedPacksFolder()
 		if not folder then return {} end
-
 		local models = {}
 		for _, child in ipairs(folder:GetChildren()) do
 			if child:IsA("Model") then
@@ -366,7 +325,7 @@ do
 			return false
 		end
 
-		-- Greedy nearest-first ordering (less travel)
+		-- Greedy nearest-first ordering
 		local function distToHRP(m: Model)
 			local p = getModelWorldPos(m)
 			if not p then return math.huge end
@@ -402,7 +361,6 @@ do
 		return true
 	end
 
-	-- NEW: After opening, keep scanning & opening until folder is empty (or stuck caps hit)
 	local function openUntilFolderEmpty()
 		local stuck = 0
 		local lastCount = math.huge
@@ -419,7 +377,6 @@ do
 				return true
 			end
 
-			-- Stuck protection: count not decreasing across passes
 			if count >= lastCount then
 				stuck += 1
 				if stuck >= POST_OPEN_STUCK_LIMIT then
@@ -492,73 +449,40 @@ do
 		return true
 	end
 
-	local function runPackIndex(packIndex: number)
-		local maxFailures = (packIndex == 6) and 3 or 2
-		local failures = 0
+	-- TRUE failsafe attempt:
+	-- For up to 30 seconds total, repeat:
+	--   sweep -> wait 3s -> check models
+	-- If models appear, return true; else after 30s return false.
+	local function attempt30sWindowForModels(): boolean
+		local windowStart = os.clock()
 
-		currentPackName = PACK_SEQUENCE[packIndex]
-		print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
-
-		while running and failures < maxFailures do
-			-- Press hotbar key before attempting (and again each retry)
-			selectHotbar(packIndex)
-			task.wait(0.05)
-
-			print(string.format("[Loop] Using hotbar #%d -> %s | Attempt %d/%d",
-				packIndex, currentPackName, failures + 1, maxFailures
-			))
-
-			-- Keep cycling place->wait->check until success or failsafe hits
-			local failsafeStartTime = nil
-
-			while running do
-				-- 1) Place sweep
-				local ok = zigzagPlaceSweep()
-				if not ok then return false end
-
-				-- Arm 30s window AFTER placing completes
-				failsafeStartTime = os.clock()
-
-				-- 2) Wait 3s
-				local startWait = os.clock()
-				while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
-					task.wait(0.1)
-				end
-				if not running then return false end
-
-				-- 3) Check placed pack models
-				local models = getPlacedPackModels()
-				if #models == 0 then
-					local elapsed = os.clock() - failsafeStartTime
-					print(string.format("[Loop] No models found (%.1fs / %.0fs) for pack %d",
-						elapsed, NO_MODEL_TIMEOUT, packIndex
-					))
-
-					if elapsed >= NO_MODEL_TIMEOUT then
-						failures += 1
-						print(string.format("[Loop] FAILSAFE HIT for pack %d (%d/%d).",
-							packIndex, failures, maxFailures
-						))
-						break
-					end
-
-					task.wait(0.2)
-				else
-					print(string.format("[Loop] Found %d models -> Potions(40) then Open.", #models))
-
-					local okPotions = applyPotions()
-					if not okPotions then return false end
-
-					-- Open packs, THEN keep scanning & opening until none remain
-					local okDrain = openUntilFolderEmpty()
-					if not okDrain then return false end
-
-					task.wait(0.25)
-				end
+		while running do
+			local elapsedWindow = os.clock() - windowStart
+			if elapsedWindow >= NO_MODEL_TIMEOUT then
+				return false
 			end
+
+			local okSweep = zigzagPlaceSweep()
+			if not okSweep then return false end
+
+			-- wait 3 seconds after placing
+			local startWait = os.clock()
+			while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
+				task.wait(0.1)
+			end
+			if not running then return false end
+
+			-- check models
+			local models = getPlacedPackModels()
+			if #models > 0 then
+				return true
+			end
+
+			-- small pause before next sweep/check within the same 30s window
+			task.wait(0.2)
 		end
 
-		return true
+		return false
 	end
 
 	local function mainLoop()
@@ -567,18 +491,49 @@ do
 		for packIndex = 1, #PACK_SEQUENCE do
 			if not running then break end
 
-			runPackIndex(packIndex)
+			currentPackName = PACK_SEQUENCE[packIndex]
+			print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
+
+			local failures = 0
+
+			while running and failures < FAILS_PER_PACK do
+				-- NEW RULE: Always press 1 before attempting (and again each attempt)
+				pressKey(Enum.KeyCode.One, 0.03)
+				task.wait(0.05)
+
+				print(string.format("[Loop] Attempt %d/%d (30s window) for %s", failures + 1, FAILS_PER_PACK, currentPackName))
+
+				local foundModels = attempt30sWindowForModels()
+				if not running then break end
+
+				if not foundModels then
+					failures += 1
+					warn(string.format("[Loop] FAILSAFE HIT: no models in %.0fs for %s (%d/%d)",
+						NO_MODEL_TIMEOUT, currentPackName, failures, FAILS_PER_PACK
+					))
+					-- next attempt will press 1 again automatically
+				else
+					print(string.format("[Loop] Models found for %s -> Potions(40) then Open+Drain.", currentPackName))
+
+					local okPotions = applyPotions()
+					if not okPotions or not running then break end
+
+					local okDrain = openUntilFolderEmpty()
+					if not okDrain or not running then break end
+
+					-- Success resets failures and continues looping on same pack name
+					failures = 0
+					task.wait(0.25)
+				end
+			end
 
 			if not running then break end
-			if packIndex == 6 then
-				warn("[Loop] Final failsafe reached after pack #6 attempts. Stopping loop.")
-				running = false
-				break
-			else
-				print(string.format("[Loop] Moving to next pack (finished attempts for pack %d).", packIndex))
-			end
+
+			print(string.format("[Loop] Moving on from %s (exhausted %d failsafe attempts).", currentPackName, FAILS_PER_PACK))
 		end
 
+		warn("[Loop] Completed all packs or stopped. Stopping loop.")
+		running = false
 		print("[Loop] Stopped.")
 	end
 
