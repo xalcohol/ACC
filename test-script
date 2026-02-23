@@ -1,8 +1,6 @@
 -- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 
 -- Remote
 local cardPack = ReplicatedStorage.Remotes:WaitForChild("Card")
@@ -15,212 +13,139 @@ print("[Scanner] Connected to:", packsFolder:GetFullName())
 
 -- Scenario 2: Always-buy packs (by IDENTITY MESH name)
 local ALWAYS_BUY = {
-    Pirate = true,
-    Ninja = true,
-    Soul = true,
-    Dragon = true,
-    Sorcerer = true,
-    Slayer = true,
-    Fire = true,
-    Hero = true,
-    Hunter = true
+	Pirate = true,
+	Ninja = true,
+	Soul = true,
+	Dragon = true,
+	Sorcerer = true,
+	Slayer = true,
+	Fire = true,
+	Hero = true,
+	Hunter = true
 }
 
--- Scenario 3: Only buy if "Diamond" mutation exists (by IDENTITY MESH name)
+-- Scenario 3: Only buy if "Diamond" mutation exists
 local DIAMOND_ONLY = {
-    Flight = true,
-    Chainsaw = true,
-    Titan = true,
-    Solo = true
+	Flight = true,
+	Chainsaw = true,
+	Titan = true,
+	Solo = true
 }
-
--- ===== GUI (tracks Scenario 1 + Scenario 4 only) =====
-local player = Players.LocalPlayer
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "PackTrackerGui"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local timerLabel = Instance.new("TextLabel")
-timerLabel.Name = "Timer"
-timerLabel.AnchorPoint = Vector2.new(0, 0)
-timerLabel.Position = UDim2.new(0, 12, 0, 12)
-timerLabel.Size = UDim2.new(0, 260, 0, 28)
-timerLabel.BackgroundTransparency = 0.25
-timerLabel.TextScaled = false
-timerLabel.TextSize = 18
-timerLabel.Font = Enum.Font.SourceSansBold
-timerLabel.TextXAlignment = Enum.TextXAlignment.Left
-timerLabel.Parent = gui
-
-local listFrame = Instance.new("ScrollingFrame")
-listFrame.Name = "List"
-listFrame.Position = UDim2.new(0, 12, 0, 48)
-listFrame.Size = UDim2.new(0, 320, 0, 260)
-listFrame.BackgroundTransparency = 0.25
-listFrame.BorderSizePixel = 0
-listFrame.ScrollBarThickness = 8
-listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-listFrame.Parent = gui
-
-local layout = Instance.new("UIListLayout")
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0, 4)
-layout.Parent = listFrame
-
-local startTime = time()
-local lastShownSecond = -1
-
--- trackerKey -> {count=int, label=TextLabel}
-local tracker = {}
-
-local function formatElapsed(seconds)
-    local s = math.floor(seconds % 60)
-    local m = math.floor((seconds / 60) % 60)
-    local h = math.floor(seconds / 3600)
-    return string.format("%02d:%02d:%02d", h, m, s)
-end
-
-local function updateCanvas()
-    local contentY = layout.AbsoluteContentSize.Y
-    listFrame.CanvasSize = UDim2.new(0, 0, 0, contentY + 8)
-end
-
-local function bumpTracker(packName, mutationName)
-    local key = packName .. " (" .. mutationName .. ")"
-    local entry = tracker[key]
-
-    if not entry then
-        local label = Instance.new("TextLabel")
-        label.BackgroundTransparency = 1
-        label.Size = UDim2.new(1, -10, 0, 22)
-        label.Font = Enum.Font.SourceSans
-        label.TextSize = 18
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Text = key .. " x1"
-        label.Parent = listFrame
-
-        tracker[key] = { count = 1, label = label }
-        updateCanvas()
-        return
-    end
-
-    entry.count += 1
-    entry.label.Text = key .. " x" .. tostring(entry.count)
-end
-------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    local elapsed = time() - startTime
-    local sec = math.floor(elapsed)
-    if sec ~= lastShownSecond then
-        lastShownSecond = sec
-        timerLabel.Text = "Runtime: " .. formatElapsed(elapsed)
-    end
-end)
 
 -- Purchase function
 local function buyPack(modelName)
-    cardPack:FireServer("BuyPack", modelName)
+	cardPack:FireServer("BuyPack", modelName)
 end
 
 -- Scan for MeshPart & mutation
 local function scanForMutation(model)
-    print("  > Scanning model:", model.Name)
+	print("  > Scanning model:", model.Name)
 
-    for _, descendant in ipairs(model:GetDescendants()) do
-        if descendant:IsA("MeshPart") then
-            if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-                print("     [IDENTITY MESH] ->", descendant.Name)
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("MeshPart") then
+			if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
+				print("     [IDENTITY MESH] ->", descendant.Name)
 
-                local hasRainbow = false
-                local hasDiamond = false
-                local hasEmerald = false
-                local hasVoid = false
+				local hasRainbow = false
+				local hasDiamond = false
+				local hasEmerald = false
+				local hasVoid = false
 
-                for _, child in ipairs(descendant:GetChildren()) do
-                    if child:IsA("Part") then
-                        print("        Mutation Found ->", child.Name)
+				for _, child in ipairs(descendant:GetChildren()) do
+					if child:IsA("Part") then
+						print("        Mutation Found ->", child.Name)
 
-                        if child.Name == "Rainbow" then
-                            hasRainbow = true
-                        elseif child.Name == "Diamond" then
-                            hasDiamond = true
-                        elseif child.Name == "Emerald" then
-                            hasEmerald = true
-                        elseif child.Name == "Void" then
-                            hasVoid = true
-                        end
-                    end
-                end
+						if child.Name == "Rainbow" then
+							hasRainbow = true
+						elseif child.Name == "Diamond" then
+							hasDiamond = true
+						elseif child.Name == "Emerald" then
+							hasEmerald = true
+						elseif child.Name == "Void" then
+							hasVoid = true
+						end
+					end
+				end
 
-                -- Priority 1: Rainbow (any pack)
-                if hasRainbow then
-                    print("     [PRIORITY 1] Rainbow detected -> Purchasing")
-                    -- Track Scenario 1 only
-                    bumpTracker(descendant.Name, "Rainbow")
-                    buyPack(model.Name)
-                    return
-                end
+				-- Priority 1: Rainbow (any pack)
+				if hasRainbow then
+					print("     [PRIORITY 1] Rainbow detected -> Purchasing")
+					buyPack(model.Name)
+					return
+				end
 
-                -- Priority 2: Always-buy packs
-                if ALWAYS_BUY[descendant.Name] then
-                    print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-                    buyPack(model.Name)
-                    return
-                end
+				-- Priority 2: Always-buy packs
+				if ALWAYS_BUY[descendant.Name] then
+					print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
+					buyPack(model.Name)
+					return
+				end
 
-                -- Priority 3: Diamond-only packs
-                if DIAMOND_ONLY[descendant.Name] then
-                    if hasDiamond then
-                        print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-                        buyPack(model.Name)
-                        return
-                    else
-                        print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-                        return
-                    end
-                end
-------------------------------------------------------------
-                -- Priority 4: Note / Slime (Emerald, Void, or Diamond)
-                if descendant.Name == "Note" or descendant.Name == "Slime" then
-                    if hasDiamond or hasEmerald or hasVoid then
-                        local mutationName = "Diamond"
-                        if not hasDiamond and hasEmerald then
-                            mutationName = "Emerald"
-                        elseif not hasDiamond and not hasEmerald and hasVoid then
-                            mutationName = "Void"
-                        end
+				-- Priority 3: Diamond-only packs
+				if DIAMOND_ONLY[descendant.Name] then
+					if hasDiamond then
+						print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+						return
+					else
+						print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
+						return
+					end
+				end
 
-                        print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
-                        -- Track Scenario 4 only
-                        bumpTracker(descendant.Name, mutationName)
-                        buyPack(model.Name)
-                        return
-                    else
-                        print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-                        return
-                    end
-                end
+				-- Priority 4: Note / Slime (Emerald, Void, or Diamond)
+				if descendant.Name == "Note" or descendant.Name == "Slime" then
+					if hasDiamond or hasEmerald or hasVoid then
+						print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+						return
+					else
+						print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
+						return
+					end
+				end
 
-                -- Nothing matched
-                print("     Nothing matched. Skipping pack.")
-                return
-            end
-        end
-    end
+				-- Nothing matched
+				print("     Nothing matched. Skipping pack.")
+				return
+			end
+		end
+	end
 end
+
+-- NEW: Initial sweep of everything currently on the conveyor
+local function initialSweep()
+	print("\n[Scanner] Initial sweep starting...")
+
+	local children = packsFolder:GetChildren()
+	print("[Scanner] Found", #children, "existing children to scan.")
+
+	for _, child in ipairs(children) do
+		if child:IsA("Model") then
+			print("\n[Scanner] (Sweep) Existing model found:")
+			print("Name:", child.Name)
+			print("Class:", child.ClassName)
+			print("-------------------------")
+			scanForMutation(child)
+		end
+	end
+
+	print("\n[Scanner] Initial sweep complete.")
+end
+
+-- Run the sweep once at startup
+initialSweep()
 
 -- Listen for new models
 packsFolder.ChildAdded:Connect(function(child)
-    print("\n[Scanner] Something spawned:")
-    print("Name:", child.Name)
-    print("Class:", child.ClassName)
-    print("-------------------------")
+	print("\n[Scanner] Something spawned:")
+	print("Name:", child.Name)
+	print("Class:", child.ClassName)
+	print("-------------------------")
 
-    if child:IsA("Model") then
-        scanForMutation(child)
-    end
+	if child:IsA("Model") then
+		scanForMutation(child)
+	end
 end)
 
 print("[Scanner] Listening for new children...")
