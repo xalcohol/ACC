@@ -13,116 +13,139 @@ print("[Scanner] Connected to:", packsFolder:GetFullName())
 
 -- Scenario 2: Always-buy packs (by IDENTITY MESH name)
 local ALWAYS_BUY = {
-    Pirate = true,
-    Ninja = true,
-    Soul = true,
-    Dragon = true,
-    Sorcerer = true,
-    Slayer = true,
-    Fire = true,
-    Hero = true,
-    Hunter = true
+	Pirate = true,
+	Ninja = true,
+	Soul = true,
+	Dragon = true,
+	Sorcerer = true,
+	Slayer = true,
+	Fire = true,
+	Hero = true,
+	Hunter = true
 }
 
 -- Scenario 3: Only buy if "Diamond" mutation exists
 local DIAMOND_ONLY = {
-    Flight = true,
-    Chainsaw = true,
-    Titan = true,
-    Solo = true
+	Flight = true,
+	Chainsaw = true,
+	Titan = true,
+	Solo = true
 }
 
 -- Purchase function
 local function buyPack(modelName)
-    cardPack:FireServer("BuyPack", modelName)
+	cardPack:FireServer("BuyPack", modelName)
 end
 
 -- Scan for MeshPart & mutation
 local function scanForMutation(model)
-    print("  > Scanning model:", model.Name)
+	print("  > Scanning model:", model.Name)
 
-    for _, descendant in ipairs(model:GetDescendants()) do
-        if descendant:IsA("MeshPart") then
-            if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-                print("     [IDENTITY MESH] ->", descendant.Name)
+	for _, descendant in ipairs(model:GetDescendants()) do
+		if descendant:IsA("MeshPart") then
+			if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
+				print("     [IDENTITY MESH] ->", descendant.Name)
 
-                local hasRainbow = false
-                local hasDiamond = false
-                local hasEmerald = false
-                local hasVoid = false
+				local hasRainbow = false
+				local hasDiamond = false
+				local hasEmerald = false
+				local hasVoid = false
 
-                for _, child in ipairs(descendant:GetChildren()) do
-                    if child:IsA("Part") then
-                        print("        Mutation Found ->", child.Name)
+				for _, child in ipairs(descendant:GetChildren()) do
+					if child:IsA("Part") then
+						print("        Mutation Found ->", child.Name)
 
-                        if child.Name == "Rainbow" then
-                            hasRainbow = true
-                        elseif child.Name == "Diamond" then
-                            hasDiamond = true
-                        elseif child.Name == "Emerald" then
-                            hasEmerald = true
-                        elseif child.Name == "Void" then
-                            hasVoid = true
-                        end
-                    end
-                end
+						if child.Name == "Rainbow" then
+							hasRainbow = true
+						elseif child.Name == "Diamond" then
+							hasDiamond = true
+						elseif child.Name == "Emerald" then
+							hasEmerald = true
+						elseif child.Name == "Void" then
+							hasVoid = true
+						end
+					end
+				end
 
-                -- Priority 1: Rainbow (any pack)
-                if hasRainbow then
-                    print("     [PRIORITY 1] Rainbow detected -> Purchasing")
-                    buyPack(model.Name)
-                    return
-                end
+				-- Priority 1: Rainbow (any pack)
+				if hasRainbow then
+					print("     [PRIORITY 1] Rainbow detected -> Purchasing")
+					buyPack(model.Name)
+					return
+				end
 
-                -- Priority 2: Always-buy packs
-                if ALWAYS_BUY[descendant.Name] then
-                    print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-                    buyPack(model.Name)
-                    return
-                end
+				-- Priority 2: Always-buy packs
+				if ALWAYS_BUY[descendant.Name] then
+					print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
+					buyPack(model.Name)
+					return
+				end
 
-                -- Priority 3: Diamond-only packs
-                if DIAMOND_ONLY[descendant.Name] then
-                    if hasDiamond then
-                        print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-                        buyPack(model.Name)
-                        return
-                    else
-                        print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-                        return
-                    end
-                end
+				-- Priority 3: Diamond-only packs
+				if DIAMOND_ONLY[descendant.Name] then
+					if hasDiamond then
+						print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+						return
+					else
+						print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
+						return
+					end
+				end
 
-                -- Priority 4: Note / Slime (Emerald, Void, or Diamond)
-                if descendant.Name == "Note" or descendant.Name == "Slime" then
-                    if hasDiamond or hasEmerald or hasVoid then
-                        print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
-                        buyPack(model.Name)
-                        return
-                    else
-                        print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-                        return
-                    end
-                end
+				-- Priority 4: Note / Slime (Emerald, Void, or Diamond)
+				if descendant.Name == "Note" or descendant.Name == "Slime" then
+					if hasDiamond or hasEmerald or hasVoid then
+						print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+						return
+					else
+						print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
+						return
+					end
+				end
 
-                -- Nothing matched
-                print("     Nothing matched. Skipping pack.")
-                return
-            end
-        end
-    end
+				-- Nothing matched
+				print("     Nothing matched. Skipping pack.")
+				return
+			end
+		end
+	end
 end
+
+-- NEW: Initial sweep of everything currently on the conveyor
+local function initialSweep()
+	print("\n[Scanner] Initial sweep starting...")
+
+	local children = packsFolder:GetChildren()
+	print("[Scanner] Found", #children, "existing children to scan.")
+
+	for _, child in ipairs(children) do
+		if child:IsA("Model") then
+			print("\n[Scanner] (Sweep) Existing model found:")
+			print("Name:", child.Name)
+			print("Class:", child.ClassName)
+			print("-------------------------")
+			scanForMutation(child)
+		end
+	end
+
+	print("\n[Scanner] Initial sweep complete.")
+end
+
+-- Run the sweep once at startup
+initialSweep()
 
 -- Listen for new models
 packsFolder.ChildAdded:Connect(function(child)
-    print("\n[Scanner] Something spawned:")
-    print("Name:", child.Name)
-    print("Class:", child.ClassName)
-    print("-------------------------")
+	print("\n[Scanner] Something spawned:")
+	print("Name:", child.Name)
+	print("Class:", child.ClassName)
+	print("-------------------------")
 
-    if child:IsA("Model") then
-        scanForMutation(child)
-    end
+	if child:IsA("Model") then
+		scanForMutation(child)
+	end
 end)
 
 print("[Scanner] Listening for new children...")
