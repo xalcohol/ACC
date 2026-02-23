@@ -4,15 +4,8 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- Latest fixes:
--- - Failsafe tunables:
---     NO_MODEL_TIMEOUT (seconds per window)
---     FAILS_PER_PACK (how many failed windows before moving to next pack)
--- - Press hotbar "1" ONLY when not confident it's equipped.
---   If models are found (successful placement), we stop re-pressing 1 on subsequent cycles for that pack.
---   If a failsafe window fails, we set equippedConfirmed=false so next attempt will press 1 again.
--- - Post-open drain: keep scanning and opening remaining models until folder empty (with safety caps).
--- - No Tool-reading: placement uses the fixed pack names you provided.
+-- Latest additions:
+-- - Keybind L: Skip current pack immediately and move to next in PACK_SEQUENCE (while running).
 
 --========================
 -- Services
@@ -146,7 +139,6 @@ do
 				for _, child in ipairs(descendant:GetChildren()) do
 					if child:IsA("Part") then
 						sPrint("        Mutation Found ->", child.Name)
-
 						if child.Name == "Rainbow" then hasRainbow = true
 						elseif child.Name == "Diamond" then hasDiamond = true
 						elseif child.Name == "Emerald" then hasEmerald = true
@@ -154,52 +146,28 @@ do
 					end
 				end
 
-				if hasRainbow then
-					sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
-					buyPack(model.Name)
-					return
-				end
-
-				if ALWAYS_BUY[descendant.Name] then
-					sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-					buyPack(model.Name)
-					return
-				end
-
+				if hasRainbow then buyPack(model.Name); return end
+				if ALWAYS_BUY[descendant.Name] then buyPack(model.Name); return end
 				if DIAMOND_ONLY[descendant.Name] then
-					if hasDiamond then
-						sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-					else
-						sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-					end
+					if hasDiamond then buyPack(model.Name) end
 					return
 				end
-
 				if descendant.Name == "Note" or descendant.Name == "Slime" then
-					if hasDiamond or hasEmerald or hasVoid then
-						sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-					else
-						sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-					end
+					if hasDiamond or hasEmerald or hasVoid then buyPack(model.Name) end
 					return
 				end
 
-				sPrint("     Nothing matched. Skipping pack.")
 				return
 			end
 		end
 	end
 
-	-- Initial sweep
 	for _, child in ipairs(packsFolder:GetChildren()) do
 		if child:IsA("Model") then
 			scanForMutation(child)
 		end
 	end
 
-	-- Live scan
 	packsFolder.ChildAdded:Connect(function(child)
 		if child:IsA("Model") then
 			scanForMutation(child)
@@ -247,7 +215,7 @@ do
 	local BETWEEN_PACKS_DELAY = 0.05
 	local OPEN_PRESS_DURATION = 0.05
 
-	-- Failsafe tuning (YOU CAN CHANGE THESE)
+	-- Failsafe tuning
 	local NO_MODEL_TIMEOUT = 20.0 -- seconds per failsafe window
 	local FAILS_PER_PACK = 2      -- failed windows before moving to next pack
 
@@ -256,8 +224,9 @@ do
 	local POST_OPEN_PASS_PAUSE = 0.15
 	local POST_OPEN_STUCK_LIMIT = 2
 
-	-- Toggle key
+	-- Keybinds
 	local TOGGLE_KEY = Enum.KeyCode.P
+	local SKIP_KEY = Enum.KeyCode.L -- NEW: skip current pack immediately
 
 	-- Placed packs folder path
 	local PLOTS_FOLDER_NAME = "Plots"
@@ -267,6 +236,10 @@ do
 	-- State
 	local running = false
 	local currentPackName = PACK_SEQUENCE[1]
+
+	-- NEW: skip flag + current pack index so keybind can skip safely
+	local skipRequested = false
+	local currentPackIndex = 1
 
 	local function teleportTo(hrp: BasePart, pos: Vector3, lookDir: Vector3?)
 		local p = pos + Vector3.new(0, Y_LIFT, 0)
@@ -303,7 +276,7 @@ do
 
 	local function applyPotions()
 		for i = 1, POTION_USES do
-			if not running then return false end
+			if not running or skipRequested then return false end
 			PotionRemote:FireServer("Apply", POTION_NAME)
 			if POTION_DELAY > 0 then
 				task.wait(POTION_DELAY)
@@ -319,7 +292,6 @@ do
 			return false
 		end
 
-		-- Greedy nearest-first ordering
 		local function distToHRP(m: Model)
 			local p = getModelWorldPos(m)
 			if not p then return math.huge end
@@ -329,7 +301,7 @@ do
 		local remaining = table.clone(models)
 		local ordered = {}
 		while #remaining > 0 do
-			if not running then return false end
+			if not running or skipRequested then return false end
 			table.sort(remaining, function(m1, m2)
 				return distToHRP(m1) < distToHRP(m2)
 			end)
@@ -337,7 +309,7 @@ do
 		end
 
 		for _, model in ipairs(ordered) do
-			if not running then return false end
+			if not running or skipRequested then return false end
 			local pos = getModelWorldPos(model)
 			if pos then
 				local lookDir = (pos - hrp.Position)
@@ -360,7 +332,7 @@ do
 		local lastCount = math.huge
 
 		for pass = 1, POST_OPEN_MAX_PASSES do
-			if not running then return false end
+			if not running or skipRequested then return false end
 
 			local models = getPlacedPackModels()
 			local count = #models
@@ -408,7 +380,7 @@ do
 		local nextPlaceTime = 0
 
 		for r = 0, rows do
-			if not running then return false end
+			if not running or skipRequested then return false end
 
 			local rt = r / rows
 			local rowStart = v3Lerp(QB, QA, rt)
@@ -417,7 +389,7 @@ do
 			local leftToRight = (r % 2 == 0)
 
 			for c = 0, cols do
-				if not running then return false end
+				if not running or skipRequested then return false end
 
 				local ct = c / cols
 				local t = leftToRight and ct or (1 - ct)
@@ -446,10 +418,14 @@ do
 	-- For up to NO_MODEL_TIMEOUT seconds total, repeat:
 	-- sweep -> wait 3s -> check models
 	-- returns true if any models appear, else false when window expires
-	local function attemptWindowForModels(): boolean
+	local function attemptWindowForModels()
 		local windowStart = os.clock()
 
 		while running do
+			if skipRequested then
+				return false
+			end
+
 			if (os.clock() - windowStart) >= NO_MODEL_TIMEOUT then
 				return false
 			end
@@ -459,9 +435,10 @@ do
 
 			local startWait = os.clock()
 			while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
+				if skipRequested then return false end
 				task.wait(0.1)
 			end
-			if not running then return false end
+			if not running or skipRequested then return false end
 
 			local models = getPlacedPackModels()
 			if #models > 0 then
@@ -475,19 +452,25 @@ do
 	end
 
 	local function mainLoop()
-		print("[Loop] Started. (Press P to stop)")
+		print("[Loop] Started. (Press P to stop)  |  Press L to skip current pack")
 
 		for packIndex = 1, #PACK_SEQUENCE do
 			if not running then break end
 
+			currentPackIndex = packIndex
 			currentPackName = PACK_SEQUENCE[packIndex]
 			print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
 
 			local failures = 0
-			local equippedConfirmed = false -- NEW: only press 1 when false
+			local equippedConfirmed = false
 
 			while running and failures < FAILS_PER_PACK do
-				-- Only press 1 if we are not sure it's equipped
+				if skipRequested then
+					print("[Loop] Skip requested -> moving to next pack.")
+					skipRequested = false
+					break
+				end
+
 				if not equippedConfirmed then
 					pressKey(Enum.KeyCode.One, 0.03)
 					task.wait(0.05)
@@ -500,32 +483,46 @@ do
 				local foundModels = attemptWindowForModels()
 				if not running then break end
 
+				if skipRequested then
+					print("[Loop] Skip requested -> moving to next pack.")
+					skipRequested = false
+					break
+				end
+
 				if not foundModels then
 					failures += 1
-					equippedConfirmed = false -- next attempt will re-press 1
+					equippedConfirmed = false
 					warn(string.format("[Loop] FAILSAFE HIT: no models in %.0fs for %s (%d/%d)",
 						NO_MODEL_TIMEOUT, currentPackName, failures, FAILS_PER_PACK
 					))
 					task.wait(0.25)
 				else
-					-- Models found means it's definitely equipped (no need to re-press 1 next cycle)
 					equippedConfirmed = true
 					print(string.format("[Loop] Models found for %s -> Potions(40) then Open+Drain.", currentPackName))
 
 					local okPotions = applyPotions()
 					if not okPotions or not running then break end
+					if skipRequested then
+						print("[Loop] Skip requested during potions -> moving to next pack.")
+						skipRequested = false
+						break
+					end
 
 					local okDrain = openUntilFolderEmpty()
 					if not okDrain or not running then break end
+					if skipRequested then
+						print("[Loop] Skip requested during open -> moving to next pack.")
+						skipRequested = false
+						break
+					end
 
-					-- Success resets failure counter and continues looping same pack
 					failures = 0
 					task.wait(0.25)
 				end
 			end
 
 			if not running then break end
-			print(string.format("[Loop] Moving on from %s (exhausted %d failsafe attempts).", currentPackName, FAILS_PER_PACK))
+			print(string.format("[Loop] Moving on from %s.", currentPackName))
 		end
 
 		warn("[Loop] Completed all packs or stopped. Stopping loop.")
@@ -538,18 +535,33 @@ do
 		print("[Loop] Running:", running)
 
 		if running then
+			skipRequested = false
 			task.spawn(mainLoop)
+		else
+			-- if stopping, clear skip
+			skipRequested = false
 		end
 	end
 
 	UserInputService.InputBegan:Connect(function(input, gp)
 		if gp then return end
+
 		if input.KeyCode == TOGGLE_KEY then
 			toggle()
+			return
+		end
+
+		-- NEW: Skip keybind
+		if input.KeyCode == SKIP_KEY then
+			if running then
+				print(string.format("[Loop] Skip key pressed (L) -> will skip pack %d (%s).", currentPackIndex, tostring(currentPackName)))
+				skipRequested = true
+			end
+			return
 		end
 	end)
 
-	print("[Loop] Loaded. Press P to start/stop the pack placer/opener loop.")
+	print("[Loop] Loaded. Press P to start/stop. Press L to skip current pack.")
 end
 
 print("[Merged] Loaded: Tokens + Scanner always-on. Pack loop toggles with P. (Scanner debug:", DEBUG_SCANNER, ")")
