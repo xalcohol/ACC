@@ -21,13 +21,16 @@ local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)    -- top-right
 local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)    -- bottom-right-ish
 
 -- === TUNING ===
-local STEP_STUDS = 7          -- "inch by inch" (use 0.5 for denser)
-local ROW_STEP_STUDS = 7.0      -- how far down between rows
-local Y_LIFT = 2.5              -- lift HRP above the surface when teleporting
-local TELEPORT_WAIT = 0.03      -- time between teleports (stability)
-local PLACE_WAIT = .3         -- time between place calls (rate/replication)
-local PLACE_EVERY_N_STEPS = 1   -- place every step (set 2/3/etc to thin out)
+local STEP_STUDS = 7.0           -- distance between columns
+local ROW_STEP_STUDS = 7.0       -- distance between rows
+local Y_LIFT = 2.5               -- lift HRP above the surface when teleporting
+
+local TELEPORT_WAIT = 0          -- 0 = as fast as possible; >0 adds stability delay
+local PLACE_EVERY_N_STEPS = 1    -- attempt placing every N teleports
 local PACK_NAME = "Note-Emerald"
+
+-- NEW: time-based place limiter (replaces PLACE_WAIT blocking)
+local PLACE_COOLDOWN = 0.12      -- seconds between Place fires (try 0.08 to 0.20)
 
 -- Toggle key
 local TOGGLE_KEY = Enum.KeyCode.P
@@ -89,8 +92,10 @@ local function zigzagScan()
 	local rows = stepsForDistance(leftLen, ROW_STEP_STUDS)
 
 	print(string.format("[Zigzag] cols=%d rows=%d (STEP=%.2f ROW_STEP=%.2f)", cols, rows, STEP_STUDS, ROW_STEP_STUDS))
+	print(string.format("[Zigzag] TELEPORT_WAIT=%.3f PLACE_COOLDOWN=%.3f", TELEPORT_WAIT, PLACE_COOLDOWN))
 
 	local globalStep = 0
+	local nextPlaceTime = 0 -- NEW: rate limit timer
 
 	for r = 0, rows do
 		if not running then break end
@@ -115,12 +120,21 @@ local function zigzagScan()
 			local pos = v3Lerp(rowStart, rowEnd, t)
 
 			teleportTo(hrp, pos, rowDir)
-			task.wait(TELEPORT_WAIT)
+
+			-- Only wait if TELEPORT_WAIT > 0
+			if TELEPORT_WAIT > 0 then
+				task.wait(TELEPORT_WAIT)
+			end
 
 			globalStep += 1
+
+			-- Attempt to place based on step cadence, but rate-limited by time
 			if (globalStep % PLACE_EVERY_N_STEPS) == 0 then
-				placePack()
-				task.wait(PLACE_WAIT)
+				local now = os.clock()
+				if now >= nextPlaceTime then
+					placePack()
+					nextPlaceTime = now + PLACE_COOLDOWN
+				end
 			end
 		end
 	end
@@ -135,7 +149,6 @@ local function toggle()
 	print("[Zigzag] Running:", running)
 
 	if running then
-		-- start thread
 		scanThread = task.spawn(zigzagScan)
 	end
 end
