@@ -1,8 +1,26 @@
 --// LocalScript (StarterPlayerScripts)
--- One-loop automation:
--- place -> wait 3s -> potions (40) -> teleport to each placed pack & press E -> repeat
--- Failsafe: if no models in placed packs folder, skip potions/open and keep placing.
--- If no models are found for 30 seconds total, stop the loop (assume out of packs).
+-- Full automation (ONE keybind: P):
+--
+-- For each pack in this exact order:
+--  1) Slime (Emerald)
+--  2) Note (Emerald)
+--  3) Sins (Emerald)
+--  4) Fairy (Emerald)
+--  5) Bizarre (Emerald)
+--  6) Geass (Emerald)
+--
+-- Flow per pack:
+--   Press hotbar number (1-6) to select/equip the pack
+--   place (zigzag sweep) -> wait 3s -> if models exist:
+--       potions (40) -> teleport to each model and press E -> repeat
+--
+-- Failsafe logic:
+--   After a placement sweep completes, start a 30s countdown window.
+--   If NO placed-pack models are found for 30s:
+--      - Press the SAME hotbar number and try again (because you might have unequipped)
+--      - If it fails again (2nd 30s window), assume you're out of that pack -> proceed to next pack
+--   Final failsafe:
+--      - On pack #6 (hotbar 6), require 3 consecutive 30s failures before stopping the whole loop.
 
 -- Services
 local Players = game:GetService("Players")
@@ -25,32 +43,46 @@ local B = Vector3.new(-621.693604, 7.1538558,  -150.819366)
 local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
--- === TUNING ===
--- Placement sweep
+-- === PACK ORDER + HOTBAR KEYS (EXACT ORDER REQUIRED) ===
+local PACK_SEQUENCE = {
+	"Slime-Emerald",
+	"Note-Emerald",
+	"Sins-Emerald",
+	"Fairy-Emerald",
+	"Bizarre-Emerald",
+	"Geass-Emerald",
+}
+
+local HOTBAR_KEYS = {
+	Enum.KeyCode.One,
+	Enum.KeyCode.Two,
+	Enum.KeyCode.Three,
+	Enum.KeyCode.Four,
+	Enum.KeyCode.Five,
+	Enum.KeyCode.Six,
+}
+
+-- === TUNING (keep same settings) ===
 local STEP_STUDS = 7.0
 local ROW_STEP_STUDS = 7.0
 local Y_LIFT = 2.5
 local TELEPORT_WAIT = 0.08
 local PLACE_EVERY_N_STEPS = 1
-local PACK_NAME = "Note-Emerald"
 local PLACE_COOLDOWN = 0.08
 
--- Loop pacing
 local AFTER_PLACE_WAIT = 3.0
 
--- Potions
 local POTION_NAME = "HatchTime1"
 local POTION_USES = 40
-local POTION_DELAY = 0.10 -- delay between potion fires (raise if throttled)
+local POTION_DELAY = 0.10
 
--- Opening packs
 local OPEN_KEY = Enum.KeyCode.E
 local OPEN_AFTER_TELEPORT_DELAY = 0.12
 local BETWEEN_PACKS_DELAY = 0.05
 local OPEN_PRESS_DURATION = 0.05
 
--- Failsafe
-local NO_MODEL_TIMEOUT = 30.0  -- seconds with zero models before auto-stop
+-- Failsafe windows
+local NO_MODEL_TIMEOUT = 30.0
 
 -- Plot path
 local PLOTS_FOLDER_NAME = "Plots"
@@ -87,14 +119,38 @@ local function teleportTo(hrp, pos, lookDir)
 	end
 end
 
-local function placePack()
-	cardPack:FireServer("Place", PACK_NAME)
-end
-
 local function pressKey(keyCode, holdSeconds)
 	VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
 	task.wait(holdSeconds or 0.03)
 	VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+end
+
+local function selectHotbar(slotIndex)
+	local key = HOTBAR_KEYS[slotIndex]
+	if key then
+		pressKey(key, 0.03)
+	end
+end
+
+local function getPlacedPacksFolder()
+	local plots = Workspace:FindFirstChild(PLOTS_FOLDER_NAME)
+	if not plots then return nil end
+	local plot = plots:FindFirstChild(PLOT_ID_FOLDER_NAME)
+	if not plot then return nil end
+	return plot:FindFirstChild(PLACED_PACKS_FOLDER_NAME)
+end
+
+local function getPlacedPackModels()
+	local folder = getPlacedPacksFolder()
+	if not folder then return {} end
+
+	local models = {}
+	for _, child in ipairs(folder:GetChildren()) do
+		if child:IsA("Model") then
+			table.insert(models, child)
+		end
+	end
+	return models
 end
 
 local function getModelWorldPos(model: Model): Vector3?
@@ -115,30 +171,17 @@ local function getModelWorldPos(model: Model): Vector3?
 	return bp and bp.Position or nil
 end
 
-local function getPlacedPacksFolder()
-	local plots = Workspace:FindFirstChild(PLOTS_FOLDER_NAME)
-	if not plots then return nil end
-	local plot = plots:FindFirstChild(PLOT_ID_FOLDER_NAME)
-	if not plot then return nil end
-	local packs = plot:FindFirstChild(PLACED_PACKS_FOLDER_NAME)
-	return packs
-end
+-- =========================
+-- Actions
+-- =========================
+local currentPackName = PACK_SEQUENCE[1]
 
-local function getPlacedPackModels()
-	local folder = getPlacedPacksFolder()
-	if not folder then return {} end
-
-	local models = {}
-	for _, child in ipairs(folder:GetChildren()) do
-		if child:IsA("Model") then
-			table.insert(models, child)
-		end
-	end
-	return models
+local function placePack()
+	-- Uses the current pack name (rotates through PACK_SEQUENCE)
+	cardPack:FireServer("Place", currentPackName)
 end
 
 local function applyPotions(runningFlag)
-	print(("[Loop] Applying %d potions (%s)..."):format(POTION_USES, POTION_NAME))
 	for i = 1, POTION_USES do
 		if not runningFlag() then return false end
 		potionRemote:FireServer("Apply", POTION_NAME)
@@ -146,7 +189,6 @@ local function applyPotions(runningFlag)
 			task.wait(POTION_DELAY)
 		end
 	end
-	print("[Loop] Potion phase complete.")
 	return true
 end
 
@@ -157,9 +199,7 @@ local function openModels(models, runningFlag)
 		return false
 	end
 
-	print(("[Loop] Opening %d placed pack models..."):format(#models))
-
-	-- Greedy nearest-first ordering to reduce travel
+	-- Greedy nearest-first ordering (less travel)
 	local function distToHRP(m)
 		local p = getModelWorldPos(m)
 		if not p then return math.huge end
@@ -177,13 +217,10 @@ local function openModels(models, runningFlag)
 		table.insert(ordered, table.remove(remaining, 1))
 	end
 
-	for i, model in ipairs(ordered) do
+	for _, model in ipairs(ordered) do
 		if not runningFlag() then return false end
-
 		local pos = getModelWorldPos(model)
 		if pos then
-			print(("[Loop] (%d/%d) Teleport+Open: %s"):format(i, #ordered, model.Name))
-
 			local lookDir = (pos - hrp.Position)
 			teleportTo(hrp, pos, lookDir)
 
@@ -196,12 +233,12 @@ local function openModels(models, runningFlag)
 		end
 	end
 
-	print("[Loop] Open phase complete.")
 	return true
 end
 
 -- =========================
--- Place sweep (one full zigzag pass)
+-- Placement sweep (one full zigzag pass)
+-- Returns true if completed, false if stopped mid-way
 -- =========================
 local function zigzagPlaceSweep(runningFlag)
 	local _, hrp = getCharacterParts()
@@ -214,8 +251,6 @@ local function zigzagPlaceSweep(runningFlag)
 	local leftLen = (A - B).Magnitude
 	local cols = stepsForDistance(topLen, STEP_STUDS)
 	local rows = stepsForDistance(leftLen, ROW_STEP_STUDS)
-
-	print(string.format("[Loop] Place sweep: cols=%d rows=%d", cols, rows))
 
 	local globalStep = 0
 	local nextPlaceTime = 0
@@ -257,7 +292,7 @@ local function zigzagPlaceSweep(runningFlag)
 end
 
 -- =========================
--- Main loop
+-- Main state machine
 -- =========================
 local running = false
 local loopThread = nil
@@ -266,62 +301,110 @@ local function isRunning()
 	return running
 end
 
+local function runPackLoop(packIndex)
+	-- For packs 1-5: 2 consecutive failures to move on
+	-- For pack 6: 3 consecutive failures to stop everything
+	local maxFailures = (packIndex == 6) and 3 or 2
+
+	currentPackName = PACK_SEQUENCE[packIndex]
+	print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
+
+	local failures = 0
+
+	while running and failures < maxFailures do
+		-- Press hotbar key BEFORE trying (and again each retry)
+		selectHotbar(packIndex)
+		task.wait(0.05)
+
+		print(string.format("[Loop] Using hotbar #%d -> %s | Attempt %d/%d",
+			packIndex, currentPackName, failures + 1, maxFailures
+		))
+
+		-- We'll keep cycling place->wait->check.
+		-- The 30s failsafe window is measured from AFTER each placement sweep.
+		local failsafeStartTime = nil
+
+		while running do
+			-- 1) Place sweep
+			local ok = zigzagPlaceSweep(isRunning)
+			if not ok then return false end
+
+			-- Arm countdown AFTER placing completes
+			failsafeStartTime = os.clock()
+
+			-- 2) Wait 3s
+			local startWait = os.clock()
+			while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
+				task.wait(0.1)
+			end
+			if not running then return false end
+
+			-- 3) Check models
+			local models = getPlacedPackModels()
+
+			if #models == 0 then
+				local elapsed = os.clock() - failsafeStartTime
+				print(string.format("[Loop] No models found (%.1fs / %.0fs) for pack %d",
+					elapsed, NO_MODEL_TIMEOUT, packIndex
+				))
+
+				if elapsed >= NO_MODEL_TIMEOUT then
+					-- This counts as a failure for THIS pack selection.
+					failures += 1
+					print(string.format("[Loop] FAILSAFE HIT for pack %d (%d/%d).",
+						packIndex, failures, maxFailures
+					))
+					-- Break to retry (press hotbar again) or move on to next pack
+					break
+				end
+
+				-- Keep cycling quickly (don’t hard-spin)
+				task.wait(0.2)
+			else
+				-- Found models -> do potions + open, and continue placing this same pack
+				print(string.format("[Loop] Found %d models -> Potions(40) then Open.", #models))
+
+				local okPotions = applyPotions(isRunning)
+				if not okPotions then return false end
+
+				-- Re-fetch models (they might change)
+				models = getPlacedPackModels()
+				if #models > 0 then
+					local okOpen = openModels(models, isRunning)
+					if not okOpen then return false end
+				else
+					print("[Loop] After potions, no models present (skipping open).")
+				end
+
+				-- Small stability pause between cycles on success
+				task.wait(0.25)
+				-- Note: failures is NOT incremented here; we only fail when 30s window hits with zero models.
+			end
+		end
+	end
+
+	-- If we exhausted failures, return "depleted"
+	return true
+end
+
 local function mainLoop()
 	print("[Loop] Started. (Press P to stop)")
-	local lastFoundModelTime = os.clock()
 
-	while running do
-		-- 1) Place sweep
-		local ok = zigzagPlaceSweep(isRunning)
-		if not ok then break end
-
-		-- 2) Wait 3 seconds
-		local startWait = os.clock()
-		while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
-			task.wait(0.1)
-		end
+	for packIndex = 1, #PACK_SEQUENCE do
 		if not running then break end
 
-		-- 3) Check placed packs folder
-		local models = getPlacedPackModels()
+		local depletedOrStopped = runPackLoop(packIndex)
+		if not running then break end
 
-		if #models == 0 then
-			-- No models -> skip potions/open and keep trying to place
-			local now = os.clock()
-			local elapsedNoModels = now - lastFoundModelTime
-
-			print(string.format("[Loop] No placed pack models found. (%.1fs without models)", elapsedNoModels))
-
-			-- failsafe
-			if elapsedNoModels >= NO_MODEL_TIMEOUT then
-				warn("[Loop] No models found for 30s. Assuming out of packs. Auto-stopping.")
-				running = false
-				break
-			end
-
-			-- tiny yield so we don't hard-spin
-			task.wait(0.2)
+		-- After finishing pack 1-5, proceed to next.
+		-- After pack 6, if we hit maxFailures (3), stop loop entirely.
+		if packIndex == 6 then
+			-- If we reached here, we exhausted the final pack’s attempts
+			warn("[Loop] Final failsafe reached after pack #6 attempts. Stopping loop.")
+			running = false
+			break
 		else
-			-- Found models -> reset failsafe timer
-			lastFoundModelTime = os.clock()
-			print(("[Loop] Found %d placed pack models. Proceeding to potions + open."):format(#models))
-
-			-- 4) Potions (40)
-			local okPotions = applyPotions(isRunning)
-			if not okPotions then break end
-
-			-- Re-fetch models (some games update list as you open)
-			models = getPlacedPackModels()
-			if #models > 0 then
-				-- 5) Teleport and press E
-				local okOpen = openModels(models, isRunning)
-				if not okOpen then break end
-			else
-				print("[Loop] After potions, no models present to open (skipping open).")
-			end
-
-			-- Small pause to keep things stable between cycles
-			task.wait(0.25)
+			print(string.format("[Loop] Moving to next pack (finished attempts for pack %d).", packIndex))
 		end
 	end
 
@@ -333,7 +416,6 @@ local function toggle()
 	print("[Loop] Running:", running)
 
 	if running then
-		-- reset loop thread
 		loopThread = task.spawn(mainLoop)
 	end
 end
@@ -345,4 +427,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
-print("[Loaded] Press P to start/stop the full loop.")
+print("[Loaded] Press P to start/stop the full pack-rotation loop.")
