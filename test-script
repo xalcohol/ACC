@@ -4,8 +4,13 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- Latest additions:
--- - Keybind L: Skip current pack immediately and move to next in PACK_SEQUENCE (while running).
+-- Updates in this version:
+-- SCANNER:
+--  - Slime + Note moved to ALWAYS_BUY
+--  - Scenario 4 now applies to Sins/Fairy/Bizarre/Geass (Diamond/Emerald/Void only)
+-- OPENER:
+--  - PACK_SEQUENCE first two changed to Slime-Gold and Note-Gold
+--  - Other 4 unchanged (Emerald)
 
 --========================
 -- Services
@@ -104,6 +109,8 @@ do
 
 	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
 
+	-- Scenario 2: Always-buy packs (IDENTITY MESH name)
+	-- UPDATED: Slime + Note moved here
 	local ALWAYS_BUY = {
 		Pirate = true,
 		Ninja = true,
@@ -113,14 +120,28 @@ do
 		Slayer = true,
 		Fire = true,
 		Hero = true,
-		Hunter = true
+		Hunter = true,
+
+		-- moved from old scenario 4
+		Slime = true,
+		Note = true,
 	}
 
+	-- Scenario 3: Only buy if "Diamond" mutation exists (IDENTITY MESH name)
 	local DIAMOND_ONLY = {
 		Flight = true,
 		Chainsaw = true,
 		Titan = true,
 		Solo = true
+	}
+
+	-- Scenario 4: Only buy if Diamond OR Emerald OR Void mutation exists
+	-- UPDATED: now applies to Sins/Fairy/Bizarre/Geass
+	local MUTATION_REQUIRED = {
+		Sins = true,
+		Fairy = true,
+		Bizarre = true,
+		Geass = true,
 	}
 
 	local function buyPack(modelName: string)
@@ -139,35 +160,69 @@ do
 				for _, child in ipairs(descendant:GetChildren()) do
 					if child:IsA("Part") then
 						sPrint("        Mutation Found ->", child.Name)
-						if child.Name == "Rainbow" then hasRainbow = true
-						elseif child.Name == "Diamond" then hasDiamond = true
-						elseif child.Name == "Emerald" then hasEmerald = true
-						elseif child.Name == "Void" then hasVoid = true end
+
+						if child.Name == "Rainbow" then
+							hasRainbow = true
+						elseif child.Name == "Diamond" then
+							hasDiamond = true
+						elseif child.Name == "Emerald" then
+							hasEmerald = true
+						elseif child.Name == "Void" then
+							hasVoid = true
+						end
 					end
 				end
 
-				if hasRainbow then buyPack(model.Name); return end
-				if ALWAYS_BUY[descendant.Name] then buyPack(model.Name); return end
-				if DIAMOND_ONLY[descendant.Name] then
-					if hasDiamond then buyPack(model.Name) end
-					return
-				end
-				if descendant.Name == "Note" or descendant.Name == "Slime" then
-					if hasDiamond or hasEmerald or hasVoid then buyPack(model.Name) end
+				-- Priority 1: Rainbow (any pack)
+				if hasRainbow then
+					sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
+					buyPack(model.Name)
 					return
 				end
 
+				-- Priority 2: Always-buy packs
+				if ALWAYS_BUY[descendant.Name] then
+					sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
+					buyPack(model.Name)
+					return
+				end
+
+				-- Priority 3: Diamond-only packs
+				if DIAMOND_ONLY[descendant.Name] then
+					if hasDiamond then
+						sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+					else
+						sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
+					end
+					return
+				end
+
+				-- Priority 4: Sins/Fairy/Bizarre/Geass require Diamond/Emerald/Void
+				if MUTATION_REQUIRED[descendant.Name] then
+					if hasDiamond or hasEmerald or hasVoid then
+						sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+					else
+						sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
+					end
+					return
+				end
+
+				sPrint("     Nothing matched. Skipping pack.")
 				return
 			end
 		end
 	end
 
+	-- Initial sweep
 	for _, child in ipairs(packsFolder:GetChildren()) do
 		if child:IsA("Model") then
 			scanForMutation(child)
 		end
 	end
 
+	-- Live scan
 	packsFolder.ChildAdded:Connect(function(child)
 		if child:IsA("Model") then
 			scanForMutation(child)
@@ -185,10 +240,10 @@ do
 	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
-	-- Pack names (fixed order you provided)
+	-- Pack names (UPDATED first two to Gold)
 	local PACK_SEQUENCE = {
-		"Slime-Emerald",
-		"Note-Emerald",
+		"Slime-Gold",
+		"Note-Gold",
 		"Sins-Emerald",
 		"Fairy-Emerald",
 		"Bizarre-Emerald",
@@ -226,7 +281,7 @@ do
 
 	-- Keybinds
 	local TOGGLE_KEY = Enum.KeyCode.P
-	local SKIP_KEY = Enum.KeyCode.L -- NEW: skip current pack immediately
+	local SKIP_KEY = Enum.KeyCode.L -- skip current pack immediately
 
 	-- Placed packs folder path
 	local PLOTS_FOLDER_NAME = "Plots"
@@ -236,8 +291,6 @@ do
 	-- State
 	local running = false
 	local currentPackName = PACK_SEQUENCE[1]
-
-	-- NEW: skip flag + current pack index so keybind can skip safely
 	local skipRequested = false
 	local currentPackIndex = 1
 
@@ -261,6 +314,7 @@ do
 	local function getPlacedPackModels()
 		local folder = getPlacedPacksFolder()
 		if not folder then return {} end
+
 		local models = {}
 		for _, child in ipairs(folder:GetChildren()) do
 			if child:IsA("Model") then
@@ -312,6 +366,9 @@ do
 			if not running or skipRequested then return false end
 			local pos = getModelWorldPos(model)
 			if pos then
+				local _, hrp = getCharacterParts()
+				if not hrp then return false end
+
 				local lookDir = (pos - hrp.Position)
 				teleportTo(hrp, pos, lookDir)
 
@@ -471,6 +528,7 @@ do
 					break
 				end
 
+				-- Only press 1 if we are not sure it's equipped (same behavior as before)
 				if not equippedConfirmed then
 					pressKey(Enum.KeyCode.One, 0.03)
 					task.wait(0.05)
@@ -538,7 +596,6 @@ do
 			skipRequested = false
 			task.spawn(mainLoop)
 		else
-			-- if stopping, clear skip
 			skipRequested = false
 		end
 	end
@@ -551,7 +608,6 @@ do
 			return
 		end
 
-		-- NEW: Skip keybind
 		if input.KeyCode == SKIP_KEY then
 			if running then
 				print(string.format("[Loop] Skip key pressed (L) -> will skip pack %d (%s).", currentPackIndex, tostring(currentPackName)))
