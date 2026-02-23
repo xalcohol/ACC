@@ -254,8 +254,8 @@ do
 	local OPEN_PRESS_DURATION = 0.05
 
 	-- Failsafes (updated)
-	local NO_MODEL_TIMEOUT = 30.0         -- TRUE 30-second window per attempt
-	local FAILS_PER_PACK = 3              -- after 3 failed 30s attempts, move to next pack
+	local NO_MODEL_TIMEOUT = 20.0         -- TRUE 20-second window per attempt
+	local FAILS_PER_PACK = 2              -- after 2 failed 20s attempts, move to next pack
 
 	-- Post-open drain (kept)
 	local POST_OPEN_MAX_PASSES = 12
