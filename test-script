@@ -1,9 +1,6 @@
 --// LocalScript (StarterPlayerScripts)
 -- MERGED: Token collector (always-on) + Pack scanner/buyer (always-on) + Pack placer/opener loop (toggle P)
--- Notes:
---  - Only toggle is the pack placer/opener (P).
---  - Token collector + scanner run automatically in the background (task.spawn loops).
---  - Shared services/remotes/helpers are centralized to reduce redundancy.
+-- Added: DEBUG_SCANNER toggle so you can silence or enable scanner prints on demand.
 
 --========================
 -- Services
@@ -22,6 +19,11 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 --========================
 local CardRemote = Remotes:WaitForChild("Card")
 local PotionRemote = Remotes:WaitForChild("Potion")
+
+--========================
+-- DEBUG TOGGLES
+--========================
+local DEBUG_SCANNER = false -- set true when you want scanner prints
 
 --========================
 -- Shared Helpers
@@ -69,12 +71,10 @@ end
 -- SECTION 1: TOKEN COLLECTOR (always-on)
 --========================
 do
-	-- Settings
 	local COLLECT_COOLDOWN = 10 * 60
 
 	task.spawn(function()
 		while true do
-			-- Collect tokens/buffs
 			PotionRemote:FireServer("Collect", "TravelToken1")
 			PotionRemote:FireServer("Collect", "TravelToken2")
 			PotionRemote:FireServer("Collect", "Luck")
@@ -87,14 +87,20 @@ do
 end
 
 --========================
--- SECTION 2: PACK SCANNER/BUYER (always-on)
+-- SECTION 2: PACK SCANNER/BUYER (always-on, debug-toggle prints)
 --========================
 do
 	-- Paths
 	local clientFolder = Workspace:WaitForChild("Client")
 	local packsFolder = clientFolder:WaitForChild("Packs")
 
-	print("[Scanner] Connected to:", packsFolder:GetFullName())
+	local function sPrint(...)
+		if DEBUG_SCANNER then
+			print(...)
+		end
+	end
+
+	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
 
 	-- Scenario 2: Always-buy packs (by IDENTITY MESH name)
 	local ALWAYS_BUY = {
@@ -122,12 +128,12 @@ do
 	end
 
 	local function scanForMutation(model: Model)
-		print("  > Scanning model:", model.Name)
+		sPrint("  > Scanning model:", model.Name)
 
 		for _, descendant in ipairs(model:GetDescendants()) do
 			if descendant:IsA("MeshPart") then
 				if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-					print("     [IDENTITY MESH] ->", descendant.Name)
+					sPrint("     [IDENTITY MESH] ->", descendant.Name)
 
 					local hasRainbow = false
 					local hasDiamond = false
@@ -136,7 +142,7 @@ do
 
 					for _, child in ipairs(descendant:GetChildren()) do
 						if child:IsA("Part") then
-							print("        Mutation Found ->", child.Name)
+							sPrint("        Mutation Found ->", child.Name)
 
 							if child.Name == "Rainbow" then
 								hasRainbow = true
@@ -152,14 +158,14 @@ do
 
 					-- Priority 1: Rainbow (any pack)
 					if hasRainbow then
-						print("     [PRIORITY 1] Rainbow detected -> Purchasing")
+						sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
 						buyPack(model.Name)
 						return
 					end
 
 					-- Priority 2: Always-buy packs
 					if ALWAYS_BUY[descendant.Name] then
-						print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
+						sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
 						buyPack(model.Name)
 						return
 					end
@@ -167,11 +173,11 @@ do
 					-- Priority 3: Diamond-only packs
 					if DIAMOND_ONLY[descendant.Name] then
 						if hasDiamond then
-							print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
+							sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
 							buyPack(model.Name)
 							return
 						else
-							print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
+							sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
 							return
 						end
 					end
@@ -179,16 +185,16 @@ do
 					-- Priority 4: Note / Slime (Emerald, Void, or Diamond)
 					if descendant.Name == "Note" or descendant.Name == "Slime" then
 						if hasDiamond or hasEmerald or hasVoid then
-							print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
+							sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
 							buyPack(model.Name)
 							return
 						else
-							print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
+							sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
 							return
 						end
 					end
 
-					print("     Nothing matched. Skipping pack.")
+					sPrint("     Nothing matched. Skipping pack.")
 					return
 				end
 			end
@@ -196,31 +202,31 @@ do
 	end
 
 	local function initialSweep()
-		print("\n[Scanner] Initial sweep starting...")
+		sPrint("\n[Scanner] Initial sweep starting...")
 
 		local children = packsFolder:GetChildren()
-		print("[Scanner] Found", #children, "existing children to scan.")
+		sPrint("[Scanner] Found", #children, "existing children to scan.")
 
 		for _, child in ipairs(children) do
 			if child:IsA("Model") then
-				print("\n[Scanner] (Sweep) Existing model found:")
-				print("Name:", child.Name)
-				print("Class:", child.ClassName)
-				print("-------------------------")
+				sPrint("\n[Scanner] (Sweep) Existing model found:")
+				sPrint("Name:", child.Name)
+				sPrint("Class:", child.ClassName)
+				sPrint("-------------------------")
 				scanForMutation(child)
 			end
 		end
 
-		print("\n[Scanner] Initial sweep complete.")
+		sPrint("\n[Scanner] Initial sweep complete.")
 	end
 
 	initialSweep()
 
 	packsFolder.ChildAdded:Connect(function(child)
-		print("\n[Scanner] Something spawned:")
-		print("Name:", child.Name)
-		print("Class:", child.ClassName)
-		print("-------------------------")
+		sPrint("\n[Scanner] Something spawned:")
+		sPrint("Name:", child.Name)
+		sPrint("Class:", child.ClassName)
+		sPrint("-------------------------")
 
 		if child:IsA("Model") then
 			-- Optional micro-wait if replication ever races:
@@ -229,7 +235,7 @@ do
 		end
 	end)
 
-	print("[Scanner] Listening for new children...")
+	sPrint("[Scanner] Listening for new children...")
 end
 
 --========================
@@ -293,8 +299,6 @@ do
 	-- Internal state
 	local running = false
 	local currentPackName = PACK_SEQUENCE[1]
-
-	local function isRunning() return running end
 
 	local function teleportTo(hrp: BasePart, pos: Vector3, lookDir: Vector3?)
 		local p = pos + Vector3.new(0, Y_LIFT, 0)
@@ -489,7 +493,6 @@ do
 						print(string.format("[Loop] FAILSAFE HIT for pack %d (%d/%d).",
 							packIndex, failures, maxFailures
 						))
-						-- Break to retry (re-press hotbar) or advance pack
 						break
 					end
 
@@ -514,7 +517,6 @@ do
 			end
 		end
 
-		-- If packIndex == 6 and we exhaust maxFailures, caller will stop whole loop.
 		return true
 	end
 
@@ -558,4 +560,4 @@ do
 	print("[Loop] Loaded. Press P to start/stop the pack placer/opener loop.")
 end
 
-print("[Merged] Loaded: Tokens + Scanner are always-on. Pack loop toggles with P.")
+print("[Merged] Loaded: Tokens + Scanner always-on. Pack loop toggles with P. (Scanner debug:", DEBUG_SCANNER, ")")
