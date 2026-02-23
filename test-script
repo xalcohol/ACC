@@ -1,6 +1,8 @@
 --// LocalScript (StarterPlayerScripts)
 -- MERGED: Token collector (always-on) + Pack scanner/buyer (always-on) + Pack placer/opener loop (toggle P)
--- Added: DEBUG_SCANNER toggle so you can silence or enable scanner prints on demand.
+-- Added:
+--  - DEBUG_SCANNER toggle (turn on scanner prints only when needed)
+--  - Post-open drain: after potions + opening, keep scanning Packs folder and opening remaining models until empty (with safety caps)
 
 --========================
 -- Services
@@ -239,7 +241,7 @@ do
 end
 
 --========================
--- SECTION 3: PACK PLACER + OPENER LOOP (toggle P only)
+-- SECTION 3: PACK PLACER + OPENER LOOP (toggle P only, verbose)
 --========================
 do
 	-- === QUAD CORNERS ===
@@ -286,6 +288,11 @@ do
 	local OPEN_AFTER_TELEPORT_DELAY = 0.12
 	local BETWEEN_PACKS_DELAY = 0.05
 	local OPEN_PRESS_DURATION = 0.05
+
+	-- Post-open drain (NEW)
+	local POST_OPEN_MAX_PASSES = 12
+	local POST_OPEN_PASS_PAUSE = 0.15
+	local POST_OPEN_STUCK_LIMIT = 2
 
 	-- Failsafes
 	local NO_MODEL_TIMEOUT = 30.0 -- seconds window after placing
@@ -392,6 +399,45 @@ do
 			end
 		end
 
+		return true
+	end
+
+	-- NEW: After opening, keep scanning & opening until folder is empty (or stuck caps hit)
+	local function openUntilFolderEmpty()
+		local stuck = 0
+		local lastCount = math.huge
+
+		for pass = 1, POST_OPEN_MAX_PASSES do
+			if not running then return false end
+
+			local models = getPlacedPackModels()
+			local count = #models
+
+			print(string.format("[Loop] Post-open scan pass %d: %d models remaining", pass, count))
+
+			if count == 0 then
+				return true
+			end
+
+			-- Stuck protection: count not decreasing across passes
+			if count >= lastCount then
+				stuck += 1
+				if stuck >= POST_OPEN_STUCK_LIMIT then
+					warn("[Loop] Post-open appears stuck (models not decreasing). Continuing loop anyway.")
+					return true
+				end
+			else
+				stuck = 0
+			end
+			lastCount = count
+
+			local ok = openModels(models)
+			if not ok then return false end
+
+			task.wait(POST_OPEN_PASS_PAUSE)
+		end
+
+		warn("[Loop] Post-open max passes reached. Continuing loop.")
 		return true
 	end
 
@@ -503,14 +549,9 @@ do
 					local okPotions = applyPotions()
 					if not okPotions then return false end
 
-					-- Re-fetch models (may change during open)
-					models = getPlacedPackModels()
-					if #models > 0 then
-						local okOpen = openModels(models)
-						if not okOpen then return false end
-					else
-						print("[Loop] After potions, no models present (skipping open).")
-					end
+					-- Open packs, THEN keep scanning & opening until none remain
+					local okDrain = openUntilFolderEmpty()
+					if not okDrain then return false end
 
 					task.wait(0.25)
 				end
