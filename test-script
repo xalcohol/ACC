@@ -4,11 +4,15 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- IMPORTANT:
--- - No Tool-reading / toolname detection (per your request).
--- - Placement uses the fixed Emerald pack names you provided.
--- - Hotbar press is ALWAYS "1" only (never 2-6).
--- - Real 30s failsafe windows (not resetting each sweep).
+-- Latest fixes:
+-- - Failsafe tunables:
+--     NO_MODEL_TIMEOUT (seconds per window)
+--     FAILS_PER_PACK (how many failed windows before moving to next pack)
+-- - Press hotbar "1" ONLY when not confident it's equipped.
+--   If models are found (successful placement), we stop re-pressing 1 on subsequent cycles for that pack.
+--   If a failsafe window fails, we set equippedConfirmed=false so next attempt will press 1 again.
+-- - Post-open drain: keep scanning and opening remaining models until folder empty (with safety caps).
+-- - No Tool-reading: placement uses the fixed pack names you provided.
 
 --========================
 -- Services
@@ -134,66 +138,56 @@ do
 		sPrint("  > Scanning model:", model.Name)
 
 		for _, descendant in ipairs(model:GetDescendants()) do
-			if descendant:IsA("MeshPart") then
-				if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-					sPrint("     [IDENTITY MESH] ->", descendant.Name)
+			if descendant:IsA("MeshPart") and descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
+				sPrint("     [IDENTITY MESH] ->", descendant.Name)
 
-					local hasRainbow = false
-					local hasDiamond = false
-					local hasEmerald = false
-					local hasVoid = false
+				local hasRainbow, hasDiamond, hasEmerald, hasVoid = false, false, false, false
 
-					for _, child in ipairs(descendant:GetChildren()) do
-						if child:IsA("Part") then
-							sPrint("        Mutation Found ->", child.Name)
+				for _, child in ipairs(descendant:GetChildren()) do
+					if child:IsA("Part") then
+						sPrint("        Mutation Found ->", child.Name)
 
-							if child.Name == "Rainbow" then
-								hasRainbow = true
-							elseif child.Name == "Diamond" then
-								hasDiamond = true
-							elseif child.Name == "Emerald" then
-								hasEmerald = true
-							elseif child.Name == "Void" then
-								hasVoid = true
-							end
-						end
+						if child.Name == "Rainbow" then hasRainbow = true
+						elseif child.Name == "Diamond" then hasDiamond = true
+						elseif child.Name == "Emerald" then hasEmerald = true
+						elseif child.Name == "Void" then hasVoid = true end
 					end
+				end
 
-					if hasRainbow then
-						sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
-						buyPack(model.Name)
-						return
-					end
-
-					if ALWAYS_BUY[descendant.Name] then
-						sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-						return
-					end
-
-					if DIAMOND_ONLY[descendant.Name] then
-						if hasDiamond then
-							sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-							buyPack(model.Name)
-						else
-							sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-						end
-						return
-					end
-
-					if descendant.Name == "Note" or descendant.Name == "Slime" then
-						if hasDiamond or hasEmerald or hasVoid then
-							sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
-							buyPack(model.Name)
-						else
-							sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-						end
-						return
-					end
-
-					sPrint("     Nothing matched. Skipping pack.")
+				if hasRainbow then
+					sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
+					buyPack(model.Name)
 					return
 				end
+
+				if ALWAYS_BUY[descendant.Name] then
+					sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
+					buyPack(model.Name)
+					return
+				end
+
+				if DIAMOND_ONLY[descendant.Name] then
+					if hasDiamond then
+						sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+					else
+						sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
+					end
+					return
+				end
+
+				if descendant.Name == "Note" or descendant.Name == "Slime" then
+					if hasDiamond or hasEmerald or hasVoid then
+						sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
+						buyPack(model.Name)
+					else
+						sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
+					end
+					return
+				end
+
+				sPrint("     Nothing matched. Skipping pack.")
+				return
 			end
 		end
 	end
@@ -233,7 +227,7 @@ do
 		"Geass-Emerald",
 	}
 
-	-- Tuning (your current working values)
+	-- === TUNING ===
 	local STEP_STUDS = 7.0
 	local ROW_STEP_STUDS = 7.0
 	local Y_LIFT = 2.5
@@ -253,11 +247,11 @@ do
 	local BETWEEN_PACKS_DELAY = 0.05
 	local OPEN_PRESS_DURATION = 0.05
 
-	-- Failsafes (updated)
-	local NO_MODEL_TIMEOUT = 20.0         -- TRUE 20-second window per attempt
-	local FAILS_PER_PACK = 2              -- after 2 failed 20s attempts, move to next pack
+	-- Failsafe tuning (YOU CAN CHANGE THESE)
+	local NO_MODEL_TIMEOUT = 20.0 -- seconds per failsafe window
+	local FAILS_PER_PACK = 2      -- failed windows before moving to next pack
 
-	-- Post-open drain (kept)
+	-- Post-open drain
 	local POST_OPEN_MAX_PASSES = 12
 	local POST_OPEN_PASS_PAUSE = 0.15
 	local POST_OPEN_STUCK_LIMIT = 2
@@ -449,36 +443,31 @@ do
 		return true
 	end
 
-	-- TRUE failsafe attempt:
-	-- For up to 30 seconds total, repeat:
-	--   sweep -> wait 3s -> check models
-	-- If models appear, return true; else after 30s return false.
-	local function attempt30sWindowForModels(): boolean
+	-- For up to NO_MODEL_TIMEOUT seconds total, repeat:
+	-- sweep -> wait 3s -> check models
+	-- returns true if any models appear, else false when window expires
+	local function attemptWindowForModels(): boolean
 		local windowStart = os.clock()
 
 		while running do
-			local elapsedWindow = os.clock() - windowStart
-			if elapsedWindow >= NO_MODEL_TIMEOUT then
+			if (os.clock() - windowStart) >= NO_MODEL_TIMEOUT then
 				return false
 			end
 
 			local okSweep = zigzagPlaceSweep()
 			if not okSweep then return false end
 
-			-- wait 3 seconds after placing
 			local startWait = os.clock()
 			while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
 				task.wait(0.1)
 			end
 			if not running then return false end
 
-			-- check models
 			local models = getPlacedPackModels()
 			if #models > 0 then
 				return true
 			end
 
-			-- small pause before next sweep/check within the same 30s window
 			task.wait(0.2)
 		end
 
@@ -495,24 +484,32 @@ do
 			print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
 
 			local failures = 0
+			local equippedConfirmed = false -- NEW: only press 1 when false
 
 			while running and failures < FAILS_PER_PACK do
-				-- NEW RULE: Always press 1 before attempting (and again each attempt)
-				pressKey(Enum.KeyCode.One, 0.03)
-				task.wait(0.05)
+				-- Only press 1 if we are not sure it's equipped
+				if not equippedConfirmed then
+					pressKey(Enum.KeyCode.One, 0.03)
+					task.wait(0.05)
+				end
 
-				print(string.format("[Loop] Attempt %d/%d (30s window) for %s", failures + 1, FAILS_PER_PACK, currentPackName))
+				print(string.format("[Loop] Attempt %d/%d (%.0fs window) for %s",
+					failures + 1, FAILS_PER_PACK, NO_MODEL_TIMEOUT, currentPackName
+				))
 
-				local foundModels = attempt30sWindowForModels()
+				local foundModels = attemptWindowForModels()
 				if not running then break end
 
 				if not foundModels then
 					failures += 1
+					equippedConfirmed = false -- next attempt will re-press 1
 					warn(string.format("[Loop] FAILSAFE HIT: no models in %.0fs for %s (%d/%d)",
 						NO_MODEL_TIMEOUT, currentPackName, failures, FAILS_PER_PACK
 					))
-					-- next attempt will press 1 again automatically
+					task.wait(0.25)
 				else
+					-- Models found means it's definitely equipped (no need to re-press 1 next cycle)
+					equippedConfirmed = true
 					print(string.format("[Loop] Models found for %s -> Potions(40) then Open+Drain.", currentPackName))
 
 					local okPotions = applyPotions()
@@ -521,14 +518,13 @@ do
 					local okDrain = openUntilFolderEmpty()
 					if not okDrain or not running then break end
 
-					-- Success resets failures and continues looping on same pack name
+					-- Success resets failure counter and continues looping same pack
 					failures = 0
 					task.wait(0.25)
 				end
 			end
 
 			if not running then break end
-
 			print(string.format("[Loop] Moving on from %s (exhausted %d failsafe attempts).", currentPackName, FAILS_PER_PACK))
 		end
 
