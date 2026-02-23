@@ -1,151 +1,150 @@
+--// LocalScript (StarterPlayerScripts)
+-- Zigzag teleport scan across a quad and place packs at each step.
+
 -- Services
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
 
 -- Remote
 local cardPack = ReplicatedStorage.Remotes:WaitForChild("Card")
 
--- Path
-local clientFolder = workspace:WaitForChild("Client")
-local packsFolder = clientFolder:WaitForChild("Packs")
+-- === QUAD CORNERS (same ones you provided) ===
+-- Using the perimeter order that matched your visual outline:
+-- B(top-left) -> C(top-right) -> D(bottom-right) -> A(bottom-left)
+local A = Vector3.new(-622.432373, 7.22039652, -92.1760025)     -- bottom-left-ish
+local B = Vector3.new(-621.693604, 7.1538558,  -150.819366)    -- top-left
+local C = Vector3.new(-570.654053, 7.1538558,  -152.937439)    -- top-right
+local D = Vector3.new(-570.425293, 7.1538558,  -93.1411057)    -- bottom-right-ish
 
-print("[Scanner] Connected to:", packsFolder:GetFullName())
+-- === TUNING ===
+local STEP_STUDS = 5          -- "inch by inch" (use 0.5 for denser)
+local ROW_STEP_STUDS = 5.0      -- how far down between rows
+local Y_LIFT = 2.5              -- lift HRP above the surface when teleporting
+local TELEPORT_WAIT = 0.03      -- time between teleports (stability)
+local PLACE_WAIT = 1         -- time between place calls (rate/replication)
+local PLACE_EVERY_N_STEPS = 1   -- place every step (set 2/3/etc to thin out)
+local PACK_NAME = "Note-Emerald"
 
--- Scenario 2: Always-buy packs (by IDENTITY MESH name)
-local ALWAYS_BUY = {
-	Pirate = true,
-	Ninja = true,
-	Soul = true,
-	Dragon = true,
-	Sorcerer = true,
-	Slayer = true,
-	Fire = true,
-	Hero = true,
-	Hunter = true
-}
+-- Toggle key
+local TOGGLE_KEY = Enum.KeyCode.P
 
--- Scenario 3: Only buy if "Diamond" mutation exists
-local DIAMOND_ONLY = {
-	Flight = true,
-	Chainsaw = true,
-	Titan = true,
-	Solo = true
-}
-
--- Purchase function
-local function buyPack(modelName)
-	cardPack:FireServer("BuyPack", modelName)
+-- === Helpers ===
+local function getCharacterParts()
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart", 5)
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	return char, hrp, hum
 end
 
--- Scan for MeshPart & mutation
-local function scanForMutation(model)
-	print("  > Scanning model:", model.Name)
+local function v3Lerp(a, b, t)
+	return a + (b - a) * t
+end
 
-	for _, descendant in ipairs(model:GetDescendants()) do
-		if descendant:IsA("MeshPart") then
-			if descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-				print("     [IDENTITY MESH] ->", descendant.Name)
+-- Distance-based step count (at least 1)
+local function stepsForDistance(dist, step)
+	return math.max(1, math.floor(dist / step + 0.5))
+end
 
-				local hasRainbow = false
-				local hasDiamond = false
-				local hasEmerald = false
-				local hasVoid = false
+-- Teleport HRP to world position (keep facing along row direction)
+local function teleportTo(hrp, pos, lookDir)
+	local p = pos + Vector3.new(0, Y_LIFT, 0)
+	if lookDir and lookDir.Magnitude > 1e-6 then
+		hrp.CFrame = CFrame.lookAt(p, p + lookDir.Unit)
+	else
+		hrp.CFrame = CFrame.new(p)
+	end
+end
 
-				for _, child in ipairs(descendant:GetChildren()) do
-					if child:IsA("Part") then
-						print("        Mutation Found ->", child.Name)
+-- Place pack
+local function placePack()
+	cardPack:FireServer("Place", PACK_NAME)
+end
 
-						if child.Name == "Rainbow" then
-							hasRainbow = true
-						elseif child.Name == "Diamond" then
-							hasDiamond = true
-						elseif child.Name == "Emerald" then
-							hasEmerald = true
-						elseif child.Name == "Void" then
-							hasVoid = true
-						end
-					end
-				end
+-- === Zigzag scan ===
+local running = false
+local scanThread = nil
 
-				-- Priority 1: Rainbow (any pack)
-				if hasRainbow then
-					print("     [PRIORITY 1] Rainbow detected -> Purchasing")
-					buyPack(model.Name)
-					return
-				end
+local function zigzagScan()
+	local _, hrp = getCharacterParts()
+	if not hrp then
+		warn("[Zigzag] No HumanoidRootPart found.")
+		return
+	end
 
-				-- Priority 2: Always-buy packs
-				if ALWAYS_BUY[descendant.Name] then
-					print("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-					buyPack(model.Name)
-					return
-				end
+	print("[Zigzag] Starting scan... (toggle with P to stop)")
 
-				-- Priority 3: Diamond-only packs
-				if DIAMOND_ONLY[descendant.Name] then
-					if hasDiamond then
-						print("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-						return
-					else
-						print("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-						return
-					end
-				end
+	-- Define edges:
+	-- Top edge: B -> C
+	-- Bottom edge: A -> D
+	-- Left edge: B -> A
+	-- Right edge: C -> D
+	local topLen = (C - B).Magnitude
+	local leftLen = (A - B).Magnitude
 
-				-- Priority 4: Note / Slime (Emerald, Void, or Diamond)
-				if descendant.Name == "Note" or descendant.Name == "Slime" then
-					if hasDiamond or hasEmerald or hasVoid then
-						print("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-						return
-					else
-						print("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
-						return
-					end
-				end
+	local cols = stepsForDistance(topLen, STEP_STUDS)
+	local rows = stepsForDistance(leftLen, ROW_STEP_STUDS)
 
-				-- Nothing matched
-				print("     Nothing matched. Skipping pack.")
-				return
+	print(string.format("[Zigzag] cols=%d rows=%d (STEP=%.2f ROW_STEP=%.2f)", cols, rows, STEP_STUDS, ROW_STEP_STUDS))
+
+	local globalStep = 0
+
+	for r = 0, rows do
+		if not running then break end
+
+		local rt = r / rows
+
+		-- Row endpoints are interpolated down the left/right edges
+		local rowStart = v3Lerp(B, A, rt) -- left side
+		local rowEnd   = v3Lerp(C, D, rt) -- right side
+
+		-- Row direction (for facing)
+		local rowDir = (rowEnd - rowStart)
+
+		-- Zigzag direction
+		local leftToRight = (r % 2 == 0)
+
+		for c = 0, cols do
+			if not running then break end
+
+			local ct = c / cols
+			local t = leftToRight and ct or (1 - ct)
+			local pos = v3Lerp(rowStart, rowEnd, t)
+
+			teleportTo(hrp, pos, rowDir)
+			task.wait(TELEPORT_WAIT)
+
+			globalStep += 1
+			if (globalStep % PLACE_EVERY_N_STEPS) == 0 then
+				placePack()
+				task.wait(PLACE_WAIT)
 			end
 		end
 	end
+
+	print("[Zigzag] Scan finished.")
+	running = false
 end
 
--- NEW: Initial sweep of everything currently on the conveyor
-local function initialSweep()
-	print("\n[Scanner] Initial sweep starting...")
+-- Toggle handler
+local function toggle()
+	running = not running
+	print("[Zigzag] Running:", running)
 
-	local children = packsFolder:GetChildren()
-	print("[Scanner] Found", #children, "existing children to scan.")
-
-	for _, child in ipairs(children) do
-		if child:IsA("Model") then
-			print("\n[Scanner] (Sweep) Existing model found:")
-			print("Name:", child.Name)
-			print("Class:", child.ClassName)
-			print("-------------------------")
-			scanForMutation(child)
-		end
+	if running then
+		-- start thread
+		scanThread = task.spawn(zigzagScan)
 	end
-
-	print("\n[Scanner] Initial sweep complete.")
 end
 
--- Run the sweep once at startup
-initialSweep()
-
--- Listen for new models
-packsFolder.ChildAdded:Connect(function(child)
-	print("\n[Scanner] Something spawned:")
-	print("Name:", child.Name)
-	print("Class:", child.ClassName)
-	print("-------------------------")
-
-	if child:IsA("Model") then
-		scanForMutation(child)
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == TOGGLE_KEY then
+		toggle()
 	end
 end)
 
-print("[Scanner] Listening for new children...")
+print("[Zigzag] Loaded. Press P to start/stop.")
