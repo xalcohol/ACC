@@ -25,7 +25,7 @@ local STEP_STUDS = 7.0           -- distance between columns
 local ROW_STEP_STUDS = 7.0       -- distance between rows
 local Y_LIFT = 2.5               -- lift HRP above the surface when teleporting
 
-local TELEPORT_WAIT = 0.02       -- 0 = as fast as possible; >0 adds stability delay
+local TELEPORT_WAIT = 0.08       -- 0 = as fast as possible; >0 adds stability delay
 local PLACE_EVERY_N_STEPS = 1    -- attempt placing every N teleports
 local PACK_NAME = "Note-Emerald"
 
