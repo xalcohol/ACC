@@ -1,0 +1,134 @@
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Remote
+local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
+
+-- Settings
+local INTERVAL = 0.10        -- time between "cycles" (all characters once)
+local PER_CALL_DELAY = 0.12  -- cooldown between each character roll (try 0.10–0.25)
+local ACTION = "Roll"
+
+-- State
+local running = false
+local alive = true
+local pressCount = 0
+local inputConnection
+
+-- MULTI-CALL FIRE (edit names here)
+local function fire()
+	if not alive then return end
+
+	-- Pack 1
+	Grade:FireServer(ACTION, "L")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Ryuk")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Rem")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Near")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Misa")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Mello")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Naomi")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Soichiro")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Light")
+	task.wait(PER_CALL_DELAY)
+
+	-- Pack 2
+	Grade:FireServer(ACTION, "Meliodas")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Elizabeth")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Gunther")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Diane")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Fairy King")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Ban")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Merlin")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Zeldris")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Escanor")
+	task.wait(PER_CALL_DELAY)
+
+	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
+	-- task.wait(PER_CALL_DELAY)
+	-- Grade:FireServer(ACTION, "Morgana")
+end
+
+-- Loop
+local function spamLoop()
+	while running and alive do
+		fire()
+		task.wait(INTERVAL)
+	end
+end
+
+-- ☠️ Kill switch (absolute termination)
+local function Kill()
+	if not alive then return end
+	alive = false
+	running = false
+
+	if inputConnection then
+		inputConnection:Disconnect()
+		inputConnection = nil
+	end
+
+	task.wait() -- allow loop to exit cleanly
+	script:Destroy()
+end
+
+-- R press logic: ON → OFF → KILL
+local function handleRPress()
+	if not alive then return end
+
+	pressCount += 1
+
+	if pressCount == 1 then
+		running = true
+		task.spawn(spamLoop)
+		warn("Grade spam: ON")
+
+	elseif pressCount == 2 then
+		running = false
+		warn("Grade spam: OFF")
+
+	elseif pressCount >= 3 then
+		warn("Script terminated")
+		Kill()
+	end
+end
+
+-- Bind R
+inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.R then
+		handleRPress()
+	end
+end)
