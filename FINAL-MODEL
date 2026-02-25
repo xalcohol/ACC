@@ -4,13 +4,11 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- Updates in this version:
--- SCANNER:
---  - Slime + Note moved to ALWAYS_BUY
---  - Scenario 4 now applies to Sins/Fairy/Bizarre/Geass (Diamond/Emerald/Void only)
+-- Latest updates:
 -- OPENER:
---  - PACK_SEQUENCE first two changed to Slime-Gold and Note-Gold
---  - Other 4 unchanged (Emerald)
+--  - Keep Slime-Gold and Note-Gold first
+--  - Add Slime-Emerald and Note-Emerald immediately after
+--  - Keep Sins/Fairy/Bizarre/Geass as Emerald after that
 
 --========================
 -- Services
@@ -110,7 +108,7 @@ do
 	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
 
 	-- Scenario 2: Always-buy packs (IDENTITY MESH name)
-	-- UPDATED: Slime + Note moved here
+	-- Slime + Note are always-buy
 	local ALWAYS_BUY = {
 		Pirate = true,
 		Ninja = true,
@@ -121,8 +119,6 @@ do
 		Fire = true,
 		Hero = true,
 		Hunter = true,
-
-		-- moved from old scenario 4
 		Slime = true,
 		Note = true,
 	}
@@ -136,7 +132,6 @@ do
 	}
 
 	-- Scenario 4: Only buy if Diamond OR Emerald OR Void mutation exists
-	-- UPDATED: now applies to Sins/Fairy/Bizarre/Geass
 	local MUTATION_REQUIRED = {
 		Sins = true,
 		Fairy = true,
@@ -161,55 +156,28 @@ do
 					if child:IsA("Part") then
 						sPrint("        Mutation Found ->", child.Name)
 
-						if child.Name == "Rainbow" then
-							hasRainbow = true
-						elseif child.Name == "Diamond" then
-							hasDiamond = true
-						elseif child.Name == "Emerald" then
-							hasEmerald = true
-						elseif child.Name == "Void" then
-							hasVoid = true
-						end
+						if child.Name == "Rainbow" then hasRainbow = true
+						elseif child.Name == "Diamond" then hasDiamond = true
+						elseif child.Name == "Emerald" then hasEmerald = true
+						elseif child.Name == "Void" then hasVoid = true end
 					end
 				end
 
-				-- Priority 1: Rainbow (any pack)
-				if hasRainbow then
-					sPrint("     [PRIORITY 1] Rainbow detected -> Purchasing")
-					buyPack(model.Name)
-					return
-				end
+				if hasRainbow then buyPack(model.Name); return end
+				if ALWAYS_BUY[descendant.Name] then buyPack(model.Name); return end
 
-				-- Priority 2: Always-buy packs
-				if ALWAYS_BUY[descendant.Name] then
-					sPrint("     [PRIORITY 2] Always-buy pack -> Purchasing:", descendant.Name)
-					buyPack(model.Name)
-					return
-				end
-
-				-- Priority 3: Diamond-only packs
 				if DIAMOND_ONLY[descendant.Name] then
-					if hasDiamond then
-						sPrint("     [PRIORITY 3] Diamond mutation detected -> Purchasing:", descendant.Name)
-						buyPack(model.Name)
-					else
-						sPrint("     [PRIORITY 3] Diamond-only pack but NO Diamond -> Skipping:", descendant.Name)
-					end
+					if hasDiamond then buyPack(model.Name) end
 					return
 				end
 
-				-- Priority 4: Sins/Fairy/Bizarre/Geass require Diamond/Emerald/Void
 				if MUTATION_REQUIRED[descendant.Name] then
 					if hasDiamond or hasEmerald or hasVoid then
-						sPrint("     [PRIORITY 4] Valid mutation detected -> Purchasing:", descendant.Name)
 						buyPack(model.Name)
-					else
-						sPrint("     [PRIORITY 4] Requires Emerald/Void/Diamond -> Skipping:", descendant.Name)
 					end
 					return
 				end
 
-				sPrint("     Nothing matched. Skipping pack.")
 				return
 			end
 		end
@@ -240,10 +208,12 @@ do
 	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
-	-- Pack names (UPDATED first two to Gold)
+	-- Pack names (UPDATED: add Emerald versions after Gold)
 	local PACK_SEQUENCE = {
 		"Slime-Gold",
 		"Note-Gold",
+		"Slime-Emerald",
+		"Note-Emerald",
 		"Sins-Emerald",
 		"Fairy-Emerald",
 		"Bizarre-Emerald",
@@ -314,7 +284,6 @@ do
 	local function getPlacedPackModels()
 		local folder = getPlacedPacksFolder()
 		if not folder then return {} end
-
 		local models = {}
 		for _, child in ipairs(folder:GetChildren()) do
 			if child:IsA("Model") then
@@ -366,11 +335,11 @@ do
 			if not running or skipRequested then return false end
 			local pos = getModelWorldPos(model)
 			if pos then
-				local _, hrp = getCharacterParts()
-				if not hrp then return false end
+				local _, hrp2 = getCharacterParts()
+				if not hrp2 then return false end
 
-				local lookDir = (pos - hrp.Position)
-				teleportTo(hrp, pos, lookDir)
+				local lookDir = (pos - hrp2.Position)
+				teleportTo(hrp2, pos, lookDir)
 
 				task.wait(OPEN_AFTER_TELEPORT_DELAY)
 				pressKey(OPEN_KEY, OPEN_PRESS_DURATION)
@@ -472,9 +441,6 @@ do
 		return true
 	end
 
-	-- For up to NO_MODEL_TIMEOUT seconds total, repeat:
-	-- sweep -> wait 3s -> check models
-	-- returns true if any models appear, else false when window expires
 	local function attemptWindowForModels()
 		local windowStart = os.clock()
 
@@ -528,7 +494,6 @@ do
 					break
 				end
 
-				-- Only press 1 if we are not sure it's equipped (same behavior as before)
 				if not equippedConfirmed then
 					pressKey(Enum.KeyCode.One, 0.03)
 					task.wait(0.05)
