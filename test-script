@@ -7,7 +7,7 @@ local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
 
 -- Settings
 local INTERVAL = 0.08        -- time between "cycles" (all characters once)
-local PER_CALL_DELAY = 0.12  -- cooldown between each character roll (try 0.10–0.25)
+local PER_CALL_DELAY = 0.05  -- cooldown between each character roll (try 0.10–0.25)
 local ACTION = "Roll"
 
 -- State
@@ -40,27 +40,20 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
-	Grade:FireServer(ACTION, "Zeldris")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Zeldris")
+	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Ban")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Fairy King")
+	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Fairy King")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Diane")
+	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Diane")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Elizabeth")
+	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Elizabeth")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Meliodas")
-	task.wait(PER_CALL_DELAY)
-
-	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
-	-- task.wait(PER_CALL_DELAY)
-	-- Grade:FireServer(ACTION, "Morgana")
+	--Grade:FireServer(ACTION, "Meliodas")
+	--task.wait(PER_CALL_DELAY)
 end
 
 -- Loop
