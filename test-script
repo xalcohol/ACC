@@ -27,21 +27,14 @@ local function fire()
 	Grade:FireServer(ACTION, "Near")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Naomi")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Soichiro")
 	task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
-
 	Grade:FireServer(ACTION, "Merlin")
 	task.wait(PER_CALL_DELAY)
 	
 	Grade:FireServer(ACTION, "Ban")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Diane")
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
