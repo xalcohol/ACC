@@ -16,18 +16,11 @@ local alive = true
 local pressCount = 0
 local inputConnection
 
--- c
 -- MULTI-CALL FIRE (edit names here)
 local function fire()
 	if not alive then return end
 
 	-- Pack 1
-	Grade:FireServer(ACTION, "Ryuk")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Rem")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Mello")
 	task.wait(PER_CALL_DELAY)
 
@@ -35,9 +28,6 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
-	Grade:FireServer(ACTION, "Zeldris")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Fairy King")
 	task.wait(PER_CALL_DELAY)
 
@@ -47,7 +37,32 @@ local function fire()
 	Grade:FireServer(ACTION, "Elizabeth")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Meliodas")
+	-- Pack 3
+	Grade:FireServer(ACTION, "Zeref")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Lazarus")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Erza")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Wendy")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Gajeel")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Juvia")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Lucy")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Grey")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Natsu")
 	task.wait(PER_CALL_DELAY)
 
 	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
