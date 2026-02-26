@@ -1,0 +1,75 @@
+-- Services
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Remote
+local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
+
+-- Settings
+local INTERVAL = 0.01 -- adjust speed here
+local ACTION = "Roll"
+local TARGET = "Ban"
+
+-- State
+local running = false
+local alive = true
+local pressCount = 0
+local inputConnection
+
+-- Fire once
+local function fire()
+	if not alive then return end
+	Grade:FireServer(ACTION, TARGET)
+end
+
+-- Loop
+local function spamLoop()
+	while running and alive do
+		fire()
+		task.wait(INTERVAL)
+	end
+end
+
+-- ☠️ Kill switch (absolute termination)
+local function Kill()
+	if not alive then return end
+	alive = false
+	running = false
+
+	if inputConnection then
+		inputConnection:Disconnect()
+		inputConnection = nil
+	end
+
+	task.wait() -- allow loop to exit cleanly
+	script:Destroy()
+end
+
+-- R press logic: ON → OFF → KILL
+local function handleRPress()
+	if not alive then return end
+
+	pressCount += 1
+
+	if pressCount == 1 then
+		running = true
+		task.spawn(spamLoop)
+		warn("Grade spam: ON")
+
+	elseif pressCount == 2 then
+		running = false
+		warn("Grade spam: OFF")
+
+	elseif pressCount >= 3 then
+		warn("Script terminated")
+		Kill()
+	end
+end
+
+-- Bind R
+inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.R then
+		handleRPress()
+	end
+end)
