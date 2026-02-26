@@ -16,6 +16,7 @@ local alive = true
 local pressCount = 0
 local inputConnection
 
+-- c
 -- MULTI-CALL FIRE (edit names here)
 local function fire()
 	if not alive then return end
@@ -48,6 +49,10 @@ local function fire()
 
 	Grade:FireServer(ACTION, "Meliodas")
 	task.wait(PER_CALL_DELAY)
+
+	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
+	-- task.wait(PER_CALL_DELAY)
+	-- Grade:FireServer(ACTION, "Morgana")
 end
 
 -- Loop
