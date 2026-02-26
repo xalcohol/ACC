@@ -41,7 +41,7 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Diane")
-	-task.wait(PER_CALL_DELAY)
+	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Elizabeth")
 	task.wait(PER_CALL_DELAY)
