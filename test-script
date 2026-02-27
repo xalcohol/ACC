@@ -7,7 +7,7 @@ local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
 
 -- Settings
 local INTERVAL = 0.08        -- time between "cycles" (all characters once)
-local PER_CALL_DELAY = 0.18  -- cooldown between each character roll (try 0.10–0.25)
+local PER_CALL_DELAY = 0.16  -- cooldown between each character roll (try 0.10–0.25)
 local ACTION = "Roll"
 
 -- State
@@ -52,9 +52,6 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Lucy")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Grey")
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Natsu")
