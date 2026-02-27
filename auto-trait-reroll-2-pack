@@ -7,7 +7,7 @@ local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
 
 -- Settings
 local INTERVAL = 0.08        -- time between "cycles" (all characters once)
-local PER_CALL_DELAY = 0.12  -- cooldown between each character roll (try 0.10–0.25)
+local PER_CALL_DELAY = 0.18  -- cooldown between each character roll (try 0.10–0.25)
 local ACTION = "Roll"
 
 -- State
