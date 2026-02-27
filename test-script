@@ -20,22 +20,56 @@ local inputConnection
 local function fire()
 	if not alive then return end
 
-	-- Exclusion:
-	--Grade:FireServer(ACTION, "")
-	--task.wait(PER_CALL_DELAY)
-	
 	-- Pack 1
-	--Grade:FireServer(ACTION, "")
-	--task.wait(PER_CALL_DELAY)
-
-	-- Pack 2
-	--Grade:FireServer(ACTION, "")
-	--task.wait(PER_CALL_DELAY)
-
-	-- Pack 3
-	Grade:FireServer(ACTION, "Erza")
+	Grade:FireServer(ACTION, "Jotaro")
 	task.wait(PER_CALL_DELAY)
 
+	Grade:FireServer(ACTION, "Dio")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Kira")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Josuke")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Bruno")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Jean")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Muhammad")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Koichi")
+	task.wait(PER_CALL_DELAY)
+
+	-- Pack 2
+	Grade:FireServer(ACTION, "Suzaku")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Kallen")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Jeremiah")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Sakuya")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Euphenmia")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Rolo")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "CC")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Lelouch")
+	task.wait(PER_CALL_DELAY)
+	
 	-- task.wait(PER_CALL_DELAY)
 	-- Grade:FireServer(ACTION, "Morgana")
 end
