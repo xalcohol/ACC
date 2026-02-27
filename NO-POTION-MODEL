@@ -211,8 +211,7 @@ do
 
 	-- Pack names (UPDATED: add Emerald versions after Gold)
 	local PACK_SEQUENCE = {
-		"Note-Void",
-		"Note-Emerald",
+		"Slime-Gold",
 		"Note-Gold",
 	}
 
