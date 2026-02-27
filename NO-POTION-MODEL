@@ -211,14 +211,8 @@ do
 
 	-- Pack names (UPDATED: add Emerald versions after Gold)
 	local PACK_SEQUENCE = {
-		"Slime-Gold",
-		"Note-Gold",
-		"Slime-Emerald",
+		"Note-Void",
 		"Note-Emerald",
-		"Sins-Emerald",
-		"Fairy-Emerald",
-		"Bizarre-Emerald",
-		"Geass-Emerald",
 	}
 
 	-- === TUNING ===
