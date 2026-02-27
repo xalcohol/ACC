@@ -213,6 +213,7 @@ do
 	local PACK_SEQUENCE = {
 		"Note-Void",
 		"Note-Emerald",
+		"Note-Gold",
 	}
 
 	-- === TUNING ===
