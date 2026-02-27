@@ -21,15 +21,6 @@ local function fire()
 	if not alive then return end
 
 	-- Pack 1
-	Grade:FireServer(ACTION, "Jotaro")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Dio")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Kira")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Josuke")
 	task.wait(PER_CALL_DELAY)
 
@@ -52,18 +43,9 @@ local function fire()
 	Grade:FireServer(ACTION, "Sakuya")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Euphenmia")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Rolo")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "CC")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Lelouch")
-	task.wait(PER_CALL_DELAY)
-	
 	-- task.wait(PER_CALL_DELAY)
 	-- Grade:FireServer(ACTION, "Morgana")
 end
