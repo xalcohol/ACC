@@ -20,14 +20,6 @@ local inputConnection
 local function fire()
 	if not alive then return end
 
-	-- Exclusion:
-	Grade:FireServer(ACTION, "Guy Crimson")
-	task.wait(PER_CALL_DELAY)
-	
-	-- Pack 1
-	Grade:FireServer(ACTION, "Soichiro")
-	task.wait(PER_CALL_DELAY)
-
 	-- Pack 2
 	Grade:FireServer(ACTION, "Diane")
 	task.wait(PER_CALL_DELAY)
