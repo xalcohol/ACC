@@ -33,7 +33,7 @@ local function fire()
 	--task.wait(PER_CALL_DELAY)
 
 	-- Pack 3
-	Grade:FireServer(ACTION, "Zeref")
+	Grade:FireServer(ACTION, "Erza")
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
