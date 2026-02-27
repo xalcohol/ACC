@@ -20,13 +20,44 @@ local inputConnection
 local function fire()
 	if not alive then return end
 
+	-- Exclusion:
+	--Grade:FireServer(ACTION, "")
+	--task.wait(PER_CALL_DELAY)
+	
+	-- Pack 1
+	--Grade:FireServer(ACTION, "Soichiro")
+	--task.wait(PER_CALL_DELAY)
+
 	-- Pack 2
-	Grade:FireServer(ACTION, "Diane")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Diane")
+	--task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Elizabeth")
 	task.wait(PER_CALL_DELAY)
 
+	-- Pack 3
+	Grade:FireServer(ACTION, "Zeref")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Erza")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Wendy")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Gajeel")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Juvia")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Lucy")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Nastu")
+	task.wait(PER_CALL_DELAY)
+
+	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
 	-- task.wait(PER_CALL_DELAY)
 	-- Grade:FireServer(ACTION, "Morgana")
 end
