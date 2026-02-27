@@ -8,7 +8,7 @@ local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
 -- Settings
 local INTERVAL = 0.01 -- adjust speed here
 local ACTION = "Roll"
-local TARGET = "Ban"
+local TARGET = "XXX"
 
 -- State
 local running = false
