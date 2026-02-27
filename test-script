@@ -1,583 +1,121 @@
---// LocalScript (StarterPlayerScripts)
--- MERGED:
--- 1) Token collector (always-on)
--- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
--- 3) Pack placer/opener loop (toggle P)
---
--- Latest updates:
--- OPENER:
---  - Keep Slime-Gold and Note-Gold first
---  - Add Slime-Emerald and Note-Emerald immediately after
---  - Keep Sins/Fairy/Bizarre/Geass as Emerald after that
-
---========================
 -- Services
---========================
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local Workspace = game:GetService("Workspace")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local player = Players.LocalPlayer
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- Remote
+local Grade = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Grade")
 
---========================
--- Remotes
---========================
-local CardRemote = Remotes:WaitForChild("Card")
-local PotionRemote = Remotes:WaitForChild("Potion")
+-- Settings
+local INTERVAL = 0.08        -- time between "cycles" (all characters once)
+local PER_CALL_DELAY = 0.12  -- cooldown between each character roll (try 0.10–0.25)
+local ACTION = "Roll"
 
---========================
--- DEBUG TOGGLES
---========================
-local DEBUG_SCANNER = false -- set true when you want scanner prints
+-- State
+local running = false
+local alive = true
+local pressCount = 0
+local inputConnection
 
---========================
--- Shared Helpers
---========================
-local function pressKey(keyCode: Enum.KeyCode, holdSeconds: number?)
-	VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
-	task.wait(holdSeconds or 0.03)
-	VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+-- MULTI-CALL FIRE (edit names here)
+local function fire()
+	if not alive then return end
+
+	-- Pack 1
+	Grade:FireServer(ACTION, "Jotaro")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Dio")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Kira")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Josuke")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Muhammad")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Koichi")
+	task.wait(PER_CALL_DELAY)
+
+	-- Pack 2
+	Grade:FireServer(ACTION, "VV")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Suzaku")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Kallen")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Sakuya")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Euphenmia")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Rolo")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "CC")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Lelouch")
+	task.wait(PER_CALL_DELAY)
+	
+	-- task.wait(PER_CALL_DELAY)
+	-- Grade:FireServer(ACTION, "Morgana")
 end
 
-local function getCharacterParts()
-	local char = player.Character or player.CharacterAdded:Wait()
-	local hrp = char:WaitForChild("HumanoidRootPart", 5)
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	return char, hrp, hum
+-- Loop
+local function spamLoop()
+	while running and alive do
+		fire()
+		task.wait(INTERVAL)
+	end
 end
 
-local function v3Lerp(a: Vector3, b: Vector3, t: number)
-	return a + (b - a) * t
+-- ☠️ Kill switch (absolute termination)
+local function Kill()
+	if not alive then return end
+	alive = false
+	running = false
+
+	if inputConnection then
+		inputConnection:Disconnect()
+		inputConnection = nil
+	end
+
+	task.wait() -- allow loop to exit cleanly
+	script:Destroy()
 end
 
-local function stepsForDistance(dist: number, step: number)
-	return math.max(1, math.floor(dist / step + 0.5))
-end
+-- R press logic: ON → OFF → KILL
+local function handleRPress()
+	if not alive then return end
 
-local function getModelWorldPos(model: Model): Vector3?
-	if not model or not model:IsA("Model") then return nil end
+	pressCount += 1
 
-	local ok, pivot = pcall(function()
-		return model:GetPivot()
-	end)
-	if ok and pivot then
-		return pivot.Position
-	end
+	if pressCount == 1 then
+		running = true
+		task.spawn(spamLoop)
+		warn("Grade spam: ON")
 
-	if model.PrimaryPart then
-		return model.PrimaryPart.Position
-	end
-
-	local bp = model:FindFirstChildWhichIsA("BasePart", true)
-	return bp and bp.Position or nil
-end
-
---========================
--- SECTION 1: TOKEN COLLECTOR (always-on)
---========================
-do
-	local COLLECT_COOLDOWN = 10 * 60
-
-	task.spawn(function()
-		while true do
-			PotionRemote:FireServer("Collect", "TravelToken1")
-			PotionRemote:FireServer("Collect", "TravelToken2")
-			PotionRemote:FireServer("Collect", "Luck")
-			PotionRemote:FireServer("Collect", "HatchTime")
-
-			task.wait(5)
-			task.wait(COLLECT_COOLDOWN)
-		end
-	end)
-end
-
---========================
--- SECTION 2: PACK SCANNER/BUYER (always-on, debug-toggle prints)
---========================
-do
-	local clientFolder = Workspace:WaitForChild("Client")
-	local packsFolder = clientFolder:WaitForChild("Packs")
-
-	local function sPrint(...)
-		if DEBUG_SCANNER then print(...) end
-	end
-
-	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
-
-	-- Scenario 2: Always-buy packs (IDENTITY MESH name)
-	-- Slime + Note are always-buy
-	local ALWAYS_BUY = {
-		Pirate = true,
-		Ninja = true,
-		Soul = true,
-		Dragon = true,
-		Sorcerer = true,
-		Slayer = true,
-		Fire = true,
-		Hero = true,
-		Hunter = true,
-		Slime = true,
-		Note = true,
-	}
-
-	-- Scenario 3: Only buy if "Diamond" mutation exists (IDENTITY MESH name)
-	local DIAMOND_ONLY = {
-		Flight = true,
-		Chainsaw = true,
-		Titan = true,
-		Solo = true
-	}
-
-	-- Scenario 4: Only buy if Diamond OR Emerald OR Void mutation exists
-	local MUTATION_REQUIRED = {
-		Sins = true,
-		Fairy = true,
-		Bizarre = true,
-		Geass = true,
-	}
-
-	local function buyPack(modelName: string)
-		CardRemote:FireServer("BuyPack", modelName)
-	end
-
-	local function scanForMutation(model: Model)
-		sPrint("  > Scanning model:", model.Name)
-
-		for _, descendant in ipairs(model:GetDescendants()) do
-			if descendant:IsA("MeshPart") and descendant.Name ~= "Top" and descendant.Name ~= "Bottom" then
-				sPrint("     [IDENTITY MESH] ->", descendant.Name)
-
-				local hasRainbow, hasDiamond, hasEmerald, hasVoid = false, false, false, false
-
-				for _, child in ipairs(descendant:GetChildren()) do
-					if child:IsA("Part") then
-						sPrint("        Mutation Found ->", child.Name)
-
-						if child.Name == "Rainbow" then hasRainbow = true
-						elseif child.Name == "Diamond" then hasDiamond = true
-						elseif child.Name == "Emerald" then hasEmerald = true
-						elseif child.Name == "Void" then hasVoid = true end
-					end
-				end
-
-				if hasRainbow then buyPack(model.Name); return end
-				if ALWAYS_BUY[descendant.Name] then buyPack(model.Name); return end
-
-				if DIAMOND_ONLY[descendant.Name] then
-					if hasDiamond then buyPack(model.Name) end
-					return
-				end
-
-				if MUTATION_REQUIRED[descendant.Name] then
-					if hasDiamond or hasEmerald or hasVoid then
-						buyPack(model.Name)
-					end
-					return
-				end
-
-				return
-			end
-		end
-	end
-
-	-- Initial sweep
-	for _, child in ipairs(packsFolder:GetChildren()) do
-		if child:IsA("Model") then
-			scanForMutation(child)
-		end
-	end
-
-	-- Live scan
-	packsFolder.ChildAdded:Connect(function(child)
-		if child:IsA("Model") then
-			scanForMutation(child)
-		end
-	end)
-end
-
---========================
--- SECTION 3: PACK PLACER + OPENER LOOP (toggle P only, verbose)
---========================
-do
-	-- === QUAD CORNERS ===
-	local QA = Vector3.new(-622.432373, 7.22039652, -92.1760025)
-	local QB = Vector3.new(-621.693604, 7.1538558,  -150.819366)
-	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
-	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
-
-	-- Pack names (UPDATED: add Emerald versions after Gold)
-	local PACK_SEQUENCE = {
-		"Slime-Gold",
-		"Note-Emerald",
-		"Note-Gold",
-	}
-
-	-- === TUNING ===
-	local STEP_STUDS = 7.0
-	local ROW_STEP_STUDS = 7.0
-	local Y_LIFT = 2.5
-	local TELEPORT_WAIT = 0.08
-	local PLACE_EVERY_N_STEPS = 1
-	local PLACE_COOLDOWN = 0.08
-	local AFTER_PLACE_WAIT = 3.0
-
-	-- Potions
-	local POTION_NAME = "HatchTime1"
-	local POTION_USES = 40
-	local POTION_DELAY = 0.10
-
-	-- Open packs
-	local OPEN_KEY = Enum.KeyCode.E
-	local OPEN_AFTER_TELEPORT_DELAY = 0.12
-	local BETWEEN_PACKS_DELAY = 0.05
-	local OPEN_PRESS_DURATION = 0.05
-
-	-- Failsafe tuning
-	local NO_MODEL_TIMEOUT = 20.0 -- seconds per failsafe window
-	local FAILS_PER_PACK = 2      -- failed windows before moving to next pack
-
-	-- Post-open drain
-	local POST_OPEN_MAX_PASSES = 12
-	local POST_OPEN_PASS_PAUSE = 0.15
-	local POST_OPEN_STUCK_LIMIT = 2
-
-	-- Keybinds
-	local TOGGLE_KEY = Enum.KeyCode.P
-	local SKIP_KEY = Enum.KeyCode.L -- skip current pack immediately
-
-	-- Placed packs folder path
-	local PLOTS_FOLDER_NAME = "Plots"
-	local PLOT_ID_FOLDER_NAME = "1"
-	local PLACED_PACKS_FOLDER_NAME = "Packs"
-
-	-- State
-	local running = false
-	local currentPackName = PACK_SEQUENCE[1]
-	local skipRequested = false
-	local currentPackIndex = 1
-
-	local function teleportTo(hrp: BasePart, pos: Vector3, lookDir: Vector3?)
-		local p = pos + Vector3.new(0, Y_LIFT, 0)
-		if lookDir and lookDir.Magnitude > 1e-6 then
-			hrp.CFrame = CFrame.lookAt(p, p + lookDir.Unit)
-		else
-			hrp.CFrame = CFrame.new(p)
-		end
-	end
-
-	local function getPlacedPacksFolder()
-		local plots = Workspace:FindFirstChild(PLOTS_FOLDER_NAME)
-		if not plots then return nil end
-		local plot = plots:FindFirstChild(PLOT_ID_FOLDER_NAME)
-		if not plot then return nil end
-		return plot:FindFirstChild(PLACED_PACKS_FOLDER_NAME)
-	end
-
-	local function getPlacedPackModels()
-		local folder = getPlacedPacksFolder()
-		if not folder then return {} end
-		local models = {}
-		for _, child in ipairs(folder:GetChildren()) do
-			if child:IsA("Model") then
-				table.insert(models, child)
-			end
-		end
-		return models
-	end
-
-	local function placeCurrentPack()
-		CardRemote:FireServer("Place", currentPackName)
-	end
-
-	local function applyPotions()
-		for i = 1, POTION_USES do
-			if not running or skipRequested then return false end
-			PotionRemote:FireServer("Apply", POTION_NAME)
-			if POTION_DELAY > 0 then
-				task.wait(POTION_DELAY)
-			end
-		end
-		return true
-	end
-
-	local function openModels(models: {Model})
-		local _, hrp = getCharacterParts()
-		if not hrp then
-			warn("[Loop] No HumanoidRootPart found.")
-			return false
-		end
-
-		local function distToHRP(m: Model)
-			local p = getModelWorldPos(m)
-			if not p then return math.huge end
-			return (p - hrp.Position).Magnitude
-		end
-
-		local remaining = table.clone(models)
-		local ordered = {}
-		while #remaining > 0 do
-			if not running or skipRequested then return false end
-			table.sort(remaining, function(m1, m2)
-				return distToHRP(m1) < distToHRP(m2)
-			end)
-			table.insert(ordered, table.remove(remaining, 1))
-		end
-
-		for _, model in ipairs(ordered) do
-			if not running or skipRequested then return false end
-			local pos = getModelWorldPos(model)
-			if pos then
-				local _, hrp2 = getCharacterParts()
-				if not hrp2 then return false end
-
-				local lookDir = (pos - hrp2.Position)
-				teleportTo(hrp2, pos, lookDir)
-
-				task.wait(OPEN_AFTER_TELEPORT_DELAY)
-				pressKey(OPEN_KEY, OPEN_PRESS_DURATION)
-
-				if BETWEEN_PACKS_DELAY > 0 then
-					task.wait(BETWEEN_PACKS_DELAY)
-				end
-			end
-		end
-
-		return true
-	end
-
-	local function openUntilFolderEmpty()
-		local stuck = 0
-		local lastCount = math.huge
-
-		for pass = 1, POST_OPEN_MAX_PASSES do
-			if not running or skipRequested then return false end
-
-			local models = getPlacedPackModels()
-			local count = #models
-
-			print(string.format("[Loop] Post-open scan pass %d: %d models remaining", pass, count))
-
-			if count == 0 then
-				return true
-			end
-
-			if count >= lastCount then
-				stuck += 1
-				if stuck >= POST_OPEN_STUCK_LIMIT then
-					warn("[Loop] Post-open appears stuck (models not decreasing). Continuing loop anyway.")
-					return true
-				end
-			else
-				stuck = 0
-			end
-			lastCount = count
-
-			local ok = openModels(models)
-			if not ok then return false end
-
-			task.wait(POST_OPEN_PASS_PAUSE)
-		end
-
-		warn("[Loop] Post-open max passes reached. Continuing loop.")
-		return true
-	end
-
-	local function zigzagPlaceSweep()
-		local _, hrp = getCharacterParts()
-		if not hrp then
-			warn("[Loop] No HumanoidRootPart found.")
-			return false
-		end
-
-		local topLen = (QC - QB).Magnitude
-		local leftLen = (QA - QB).Magnitude
-		local cols = stepsForDistance(topLen, STEP_STUDS)
-		local rows = stepsForDistance(leftLen, ROW_STEP_STUDS)
-
-		local globalStep = 0
-		local nextPlaceTime = 0
-
-		for r = 0, rows do
-			if not running or skipRequested then return false end
-
-			local rt = r / rows
-			local rowStart = v3Lerp(QB, QA, rt)
-			local rowEnd   = v3Lerp(QC, QD, rt)
-			local rowDir = (rowEnd - rowStart)
-			local leftToRight = (r % 2 == 0)
-
-			for c = 0, cols do
-				if not running or skipRequested then return false end
-
-				local ct = c / cols
-				local t = leftToRight and ct or (1 - ct)
-				local pos = v3Lerp(rowStart, rowEnd, t)
-
-				teleportTo(hrp, pos, rowDir)
-
-				if TELEPORT_WAIT > 0 then
-					task.wait(TELEPORT_WAIT)
-				end
-
-				globalStep += 1
-				if (globalStep % PLACE_EVERY_N_STEPS) == 0 then
-					local now = os.clock()
-					if now >= nextPlaceTime then
-						placeCurrentPack()
-						nextPlaceTime = now + PLACE_COOLDOWN
-					end
-				end
-			end
-		end
-
-		return true
-	end
-
-	local function attemptWindowForModels()
-		local windowStart = os.clock()
-
-		while running do
-			if skipRequested then
-				return false
-			end
-
-			if (os.clock() - windowStart) >= NO_MODEL_TIMEOUT then
-				return false
-			end
-
-			local okSweep = zigzagPlaceSweep()
-			if not okSweep then return false end
-
-			local startWait = os.clock()
-			while running and (os.clock() - startWait) < AFTER_PLACE_WAIT do
-				if skipRequested then return false end
-				task.wait(0.1)
-			end
-			if not running or skipRequested then return false end
-
-			local models = getPlacedPackModels()
-			if #models > 0 then
-				return true
-			end
-
-			task.wait(0.2)
-		end
-
-		return false
-	end
-
-	local function mainLoop()
-		print("[Loop] Started. (Press P to stop)  |  Press L to skip current pack")
-
-		for packIndex = 1, #PACK_SEQUENCE do
-			if not running then break end
-
-			currentPackIndex = packIndex
-			currentPackName = PACK_SEQUENCE[packIndex]
-			print(string.format("[Loop] === PACK %d/%d: %s ===", packIndex, #PACK_SEQUENCE, currentPackName))
-
-			local failures = 0
-			local equippedConfirmed = false
-
-			while running and failures < FAILS_PER_PACK do
-				if skipRequested then
-					print("[Loop] Skip requested -> moving to next pack.")
-					skipRequested = false
-					break
-				end
-
-				if not equippedConfirmed then
-					pressKey(Enum.KeyCode.One, 0.03)
-					task.wait(0.05)
-				end
-
-				print(string.format("[Loop] Attempt %d/%d (%.0fs window) for %s",
-					failures + 1, FAILS_PER_PACK, NO_MODEL_TIMEOUT, currentPackName
-				))
-
-				local foundModels = attemptWindowForModels()
-				if not running then break end
-
-				if skipRequested then
-					print("[Loop] Skip requested -> moving to next pack.")
-					skipRequested = false
-					break
-				end
-
-				if not foundModels then
-					failures += 1
-					equippedConfirmed = false
-					warn(string.format("[Loop] FAILSAFE HIT: no models in %.0fs for %s (%d/%d)",
-						NO_MODEL_TIMEOUT, currentPackName, failures, FAILS_PER_PACK
-					))
-					task.wait(0.25)
-				else
-					equippedConfirmed = true
-					print(string.format("[Loop] Models found for %s -> Potions(40) then Open+Drain.", currentPackName))
-
-					local okPotions = applyPotions()
-					if not okPotions or not running then break end
-					if skipRequested then
-						print("[Loop] Skip requested during potions -> moving to next pack.")
-						skipRequested = false
-						break
-					end
-
-					local okDrain = openUntilFolderEmpty()
-					if not okDrain or not running then break end
-					if skipRequested then
-						print("[Loop] Skip requested during open -> moving to next pack.")
-						skipRequested = false
-						break
-					end
-
-					failures = 0
-					task.wait(0.25)
-				end
-			end
-
-			if not running then break end
-			print(string.format("[Loop] Moving on from %s.", currentPackName))
-		end
-
-		warn("[Loop] Completed all packs or stopped. Stopping loop.")
+	elseif pressCount == 2 then
 		running = false
-		print("[Loop] Stopped.")
+		warn("Grade spam: OFF")
+
+	elseif pressCount >= 3 then
+		warn("Script terminated")
+		Kill()
 	end
-
-	local function toggle()
-		running = not running
-		print("[Loop] Running:", running)
-
-		if running then
-			skipRequested = false
-			task.spawn(mainLoop)
-		else
-			skipRequested = false
-		end
-	end
-
-	UserInputService.InputBegan:Connect(function(input, gp)
-		if gp then return end
-
-		if input.KeyCode == TOGGLE_KEY then
-			toggle()
-			return
-		end
-
-		if input.KeyCode == SKIP_KEY then
-			if running then
-				print(string.format("[Loop] Skip key pressed (L) -> will skip pack %d (%s).", currentPackIndex, tostring(currentPackName)))
-				skipRequested = true
-			end
-			return
-		end
-	end)
-
-	print("[Loop] Loaded. Press P to start/stop. Press L to skip current pack.")
 end
 
-print("[Merged] Loaded: Tokens + Scanner always-on. Pack loop toggles with P. (Scanner debug:", DEBUG_SCANNER, ")")
+-- Bind R
+inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.R then
+		handleRPress()
+	end
+end)
