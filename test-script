@@ -51,10 +51,7 @@ local function fire()
 	Grade:FireServer(ACTION, "Juvia")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Lucy")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Nastu")
+	Grade:FireServer(ACTION, "Giorno")
 	task.wait(PER_CALL_DELAY)
 
 	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
