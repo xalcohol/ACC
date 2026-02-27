@@ -21,62 +21,61 @@ local function fire()
 	if not alive then return end
 
 	-- Pack 1
-	Grade:FireServer(ACTION, "L")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Ryuk")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Rem")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Near")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Misa")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Mello")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Naomi")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Soichiro")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Light")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
-	Grade:FireServer(ACTION, "Meliodas")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Elizabeth")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Gunther")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Diane")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Fairy King")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Ban")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Merlin")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Zeldris")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Escanor")
+	Grade:FireServer(ACTION, "XXX")
 	task.wait(PER_CALL_DELAY)
 
-	-- Note: L, Ryuk, Rem, Near, Misa, Mello, Naomi, Soichiro, Light
 	-- task.wait(PER_CALL_DELAY)
 	-- Grade:FireServer(ACTION, "Morgana")
 end
