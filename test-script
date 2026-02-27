@@ -21,7 +21,7 @@ local function fire()
 	if not alive then return end
 
 	-- Exclusion:
-	Grade:FireServer(ACTION, "Soichiro")
+	Grade:FireServer(ACTION, "Guy Crimson")
 	task.wait(PER_CALL_DELAY)
 	
 	-- Pack 1
