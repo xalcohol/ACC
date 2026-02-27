@@ -1,5 +1,4 @@
 --// LocalScript (StarterPlayerScripts)
--- This version is strictly to afk using no potions; typically to wait for AA.
 -- MERGED:
 -- 1) Token collector (always-on)
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
@@ -227,7 +226,7 @@ do
 
 	-- Potions
 	local POTION_NAME = "HatchTime1"
-	local POTION_USES = 0
+	local POTION_USES = 40
 	local POTION_DELAY = 0.10
 
 	-- Open packs
