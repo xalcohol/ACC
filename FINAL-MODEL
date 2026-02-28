@@ -121,6 +121,8 @@ do
 		Hunter = true,
 		Slime = true,
 		Note = true,
+		Mage = true,
+		Zero = true,
 	}
 
 	-- Scenario 3: Only buy if "Diamond" mutation exists (IDENTITY MESH name)
