@@ -24,13 +24,25 @@ local function fire()
 	Grade:FireServer(ACTION, "Arima")
 	task.wait(PER_CALL_DELAY)
 
+	Grade:FireServer(ACTION, "Eto")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Rize")
+	task.wait(PER_CALL_DELAY)
+
 	Grade:FireServer(ACTION, "Amon")
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Suzuya")
 	task.wait(PER_CALL_DELAY)
 
+	Grade:FireServer(ACTION, "Tsukiyama")
+	task.wait(PER_CALL_DELAY)
+
 	Grade:FireServer(ACTION, "Hinami")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Touka")
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Kaneki")
@@ -43,7 +55,22 @@ local function fire()
 	Grade:FireServer(ACTION, "Yami")
 	task.wait(PER_CALL_DELAY)
 
+	Grade:FireServer(ACTION, "Mereoleona")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Nacht")
+	task.wait(PER_CALL_DELAY)
+
 	Grade:FireServer(ACTION, "William")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Luck")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Noelle")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Yuno")
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
