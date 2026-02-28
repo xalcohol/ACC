@@ -24,36 +24,18 @@ local function fire()
 	---Grade:FireServer(ACTION, "XXX")
 	---task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Satella")
-	task.wait(PER_CALL_DELAY)
-
 	--Grade:FireServer(ACTION, "XXX")
 	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Roswaal")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Beatrice")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Garfiel")
 	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Ram")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Rem Zero")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Subaru")
-	task.wait(PER_CALL_DELAY)
-
 	-- Pack 2
 	--Grade:FireServer(ACTION, "XXX")
 	--task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Aura")
-	task.wait(PER_CALL_DELAY)
 
 	--Grade:FireServer(ACTION, "XXX")
 	--task.wait(PER_CALL_DELAY)
@@ -61,19 +43,7 @@ local function fire()
 	Grade:FireServer(ACTION, "Denken")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Eisen")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Himmel")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Fern")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Stark")
-	task.wait(PER_CALL_DELAY)
-
-	Grade:FireServer(ACTION, "Frieren")
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
