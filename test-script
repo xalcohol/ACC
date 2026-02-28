@@ -21,29 +21,31 @@ local function fire()
 	if not alive then return end
 
 	-- Pack 1
-	Grade:FireServer(ACTION, "Josuke")
+	Grade:FireServer(ACTION, "Arima")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Muhammad")
+	Grade:FireServer(ACTION, "Eto")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Koichi")
+	Grade:FireServer(ACTION, "Rize")
 	task.wait(PER_CALL_DELAY)
 
-	-- Pack 2
-	Grade:FireServer(ACTION, "VV")
+	Grade:FireServer(ACTION, "Amon")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Suzaku")
+	Grade:FireServer(ACTION, "Suzuya")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Kallen")
+	Grade:FireServer(ACTION, "Tsukiyama")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Sakuya")
+	Grade:FireServer(ACTION, "Hinami")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Rolo")
+	Grade:FireServer(ACTION, "Touka")
+	task.wait(PER_CALL_DELAY)
+
+	Grade:FireServer(ACTION, "Kaneki")
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
