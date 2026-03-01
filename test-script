@@ -58,8 +58,8 @@ local function fire()
 	Grade:FireServer(ACTION, "Miya Twins")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Kotaro Bokuto")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Kotaro Bokuto")
+	--task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Tetsuro Kuroo")
 	task.wait(PER_CALL_DELAY)
