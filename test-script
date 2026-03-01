@@ -30,9 +30,6 @@ local function fire()
 	Grade:FireServer(ACTION, "Serie")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Flamme")
-	task.wait(PER_CALL_DELAY)
-
 	Grade:FireServer(ACTION, "Himmel")
 	task.wait(PER_CALL_DELAY)
 
