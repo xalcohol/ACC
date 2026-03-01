@@ -239,7 +239,7 @@ do
 	local WEATHER_POTIONS = {
 	-- Rain: no reduction; use both default values -> (no entry needed)
 
-	Thunderstorm = { hatch1 = 31 }, -- hatch2 uses DEFAULT
+	Thunderstorm = { hatch1 = 37 }, -- hatch2 uses DEFAULT
 	Snow         = { hatch1 = 35 }, -- hatch2 uses DEFAULT
 	Sandstorm    = { hatch1 = 33 }, -- hatch2 uses DEFAULT
 	Heatwave     = { hatch1 = 29 }, -- hatch2 uses DEFAULT
