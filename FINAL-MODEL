@@ -8,6 +8,8 @@
 --  - Weather-based potion counts
 --    Scan weather before loop starts, then rescan after packs are placed (models detected).
 --    Only apply weather potion counts if weather persists (same in both scans).
+--  - Improved weather scan: finds ANY BasePart named exactly the weather (multiple parts safe)
+--  - Debug prints to show why default vs weather plan is chosen
 
 --========================
 -- Services
@@ -233,19 +235,18 @@ do
 	local HATCH1_NAME = "HatchTime1"
 	local DEFAULT_HATCH1_USES = 39
 
-	-- Customize per-weather counts here (set nil or omit to use defaults)
-	-- Names must match the Weather Part name exactly:
-	-- Rain / Thunderstorm / Snow / Sandstorm / Heatwave / Blood Moon
+	-- Customize per-weather counts here
+	-- All weathers use DEFAULT hatch2 unless explicitly set.
 	local WEATHER_POTIONS = {
-	-- Rain: no reduction; use both default values -> (no entry needed)
+		-- Rain: no reduction; use both default values -> (no entry needed)
 
-	Thunderstorm = { hatch1 = 37 }, -- hatch2 uses DEFAULT
-	Snow         = { hatch1 = 35 }, -- hatch2 uses DEFAULT
-	Sandstorm    = { hatch1 = 33 }, -- hatch2 uses DEFAULT
-	Heatwave     = { hatch1 = 29 }, -- hatch2 uses DEFAULT
+		Thunderstorm = { hatch1 = 37 }, -- hatch2 uses DEFAULT
+		Snow         = { hatch1 = 35 }, -- hatch2 uses DEFAULT
+		Sandstorm    = { hatch1 = 33 }, -- hatch2 uses DEFAULT
+		Heatwave     = { hatch1 = 29 }, -- hatch2 uses DEFAULT
 
-	["Blood Moon"] = { hatch2 = 0, hatch1 = 22 }, -- NO hatch2s, hatch1=22
-}
+		["Blood Moon"] = { hatch2 = 0, hatch1 = 22 }, -- NO hatch2s, hatch1=22
+	}
 
 	-- Open packs
 	local OPEN_KEY = Enum.KeyCode.E
@@ -272,8 +273,17 @@ do
 	local PLACED_PACKS_FOLDER_NAME = "Packs"
 
 	--========================
-	-- Weather reader
+	-- Weather reader (improved)
 	--========================
+	local VALID_WEATHER_NAMES = {
+		Rain = true,
+		Thunderstorm = true,
+		Snow = true,
+		Sandstorm = true,
+		Heatwave = true,
+		["Blood Moon"] = true,
+	}
+
 	local function getWeatherName(): string?
 		local vfx = Workspace:FindFirstChild("VFX")
 		if not vfx then return nil end
@@ -281,18 +291,19 @@ do
 		local weatherFolder = vfx:FindFirstChild("Weather")
 		if not weatherFolder then return nil end
 
-		local part = weatherFolder:FindFirstChild("Part")
-		if not part or not part:IsA("BasePart") then return nil end
-
-		local name = part.Name
-		if name and name ~= "" then
-			return name
+		for _, inst in ipairs(weatherFolder:GetDescendants()) do
+			if inst:IsA("BasePart") then
+				local n = inst.Name
+				if VALID_WEATHER_NAMES[n] then
+					return n
+				end
+			end
 		end
+
 		return nil
 	end
 
 	local function getPotionCountsForWeather(persistedWeather: string?)
-		-- defaults
 		local h2 = DEFAULT_HATCH2_USES
 		local h1 = DEFAULT_HATCH1_USES
 
@@ -313,7 +324,6 @@ do
 	local skipRequested = false
 	local currentPackIndex = 1
 
-	-- NEW: weather scanned once at loop start
 	local loopStartWeather: string? = nil
 
 	local function teleportTo(hrp: BasePart, pos: Vector3, lookDir: Vector3?)
@@ -349,7 +359,6 @@ do
 		CardRemote:FireServer("Place", currentPackName)
 	end
 
-	-- Updated: applyPotions now takes dynamic counts
 	local function applyPotions(h2Uses: number, h1Uses: number)
 		for i = 1, h2Uses do
 			if not running or skipRequested then return false end
@@ -591,21 +600,31 @@ do
 					local secondWeather = getWeatherName()
 					local useWeather: string? = nil
 
+					print(string.format(
+						"[Weather] Decision check | start=%s | afterPlace=%s",
+						tostring(loopStartWeather),
+						tostring(secondWeather)
+					))
+
 					if loopStartWeather and secondWeather == loopStartWeather then
 						useWeather = loopStartWeather
-						print("[Weather] Persisted:", useWeather, "-> using weather potion counts")
+						print("[Weather] Persisted -> using WEATHER potion plan for:", useWeather)
 					else
 						if loopStartWeather then
-							print("[Weather] Changed/ended (start=", tostring(loopStartWeather), " now=", tostring(secondWeather), ") -> using DEFAULT potion counts")
+							print(string.format(
+								"[Weather] Not persisted (changed/ended) -> DEFAULT plan. start=%s now=%s",
+								tostring(loopStartWeather),
+								tostring(secondWeather)
+							))
 						else
-							-- no weather at start, use defaults
-							-- (even if weather appears later, your rule says only use weather if found at first scan and persists)
-							-- if you ever want "weather appears later => use it", tell me.
+							print("[Weather] No weather at loop start -> DEFAULT plan.")
 						end
 					end
 
 					local h2Uses, h1Uses = getPotionCountsForWeather(useWeather)
-					print(string.format("[Loop] Potion plan: HatchTime2 x%d, HatchTime1 x%d", h2Uses, h1Uses))
+					print(string.format("[Weather] Potion plan resolved -> H2=%d H1=%d (weatherKey=%s)",
+						h2Uses, h1Uses, tostring(useWeather)
+					))
 
 					print(string.format("[Loop] Models found for %s -> Potions then Open+Drain.", currentPackName))
 
