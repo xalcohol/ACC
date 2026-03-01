@@ -4,10 +4,10 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- NEW:
---  - Weather-based potion counts
---    Scan weather before loop starts, then rescan after packs are placed (models detected).
---    Only apply weather potion counts if weather persists (same in both scans).
+-- Weather-based potion counts (per attempt):
+--  - Each placement attempt has its own "start weather" scan
+--  - After packs are placed and models are detected, we rescan weather
+--  - Only use weather potion plan if weather persists (same name in both scans)
 --  - Improved weather scan: finds ANY BasePart named exactly the weather (multiple parts safe)
 --  - Debug prints to show why default vs weather plan is chosen
 
@@ -235,7 +235,6 @@ do
 	local HATCH1_NAME = "HatchTime1"
 	local DEFAULT_HATCH1_USES = 39
 
-	-- Customize per-weather counts here
 	-- All weathers use DEFAULT hatch2 unless explicitly set.
 	local WEATHER_POTIONS = {
 		-- Rain: no reduction; use both default values -> (no entry needed)
@@ -273,7 +272,7 @@ do
 	local PLACED_PACKS_FOLDER_NAME = "Packs"
 
 	--========================
-	-- Weather reader (improved)
+	-- Weather reader (improved + exact-name match)
 	--========================
 	local VALID_WEATHER_NAMES = {
 		Rain = true,
@@ -291,6 +290,7 @@ do
 		local weatherFolder = vfx:FindFirstChild("Weather")
 		if not weatherFolder then return nil end
 
+		-- Find ANY BasePart whose name is exactly a weather name
 		for _, inst in ipairs(weatherFolder:GetDescendants()) do
 			if inst:IsA("BasePart") then
 				local n = inst.Name
@@ -323,8 +323,6 @@ do
 	local currentPackName = PACK_SEQUENCE[1]
 	local skipRequested = false
 	local currentPackIndex = 1
-
-	local loopStartWeather: string? = nil
 
 	local function teleportTo(hrp: BasePart, pos: Vector3, lookDir: Vector3?)
 		local p = pos + Vector3.new(0, Y_LIFT, 0)
@@ -542,14 +540,8 @@ do
 	end
 
 	local function mainLoop()
-		loopStartWeather = getWeatherName()
-		if loopStartWeather then
-			print("[Weather] Detected at loop start:", loopStartWeather)
-		else
-			print("[Weather] None at loop start.")
-		end
-
 		print("[Loop] Started. (Press P to stop)  |  Press L to skip current pack")
+		print("[Weather] Per-attempt scan enabled (no sticky weather).")
 
 		for packIndex = 1, #PACK_SEQUENCE do
 			if not running then break end
@@ -573,9 +565,13 @@ do
 					task.wait(0.05)
 				end
 
-				print(string.format("[Loop] Attempt %d/%d (%.0fs window) for %s",
+				-- NEW: Per-attempt start weather scan (fresh every attempt)
+				local startWeather = getWeatherName()
+				print(string.format(
+					"[Loop] Attempt %d/%d (%.0fs window) for %s",
 					failures + 1, FAILS_PER_PACK, NO_MODEL_TIMEOUT, currentPackName
 				))
+				print("[Weather] Start-of-attempt scan:", tostring(startWeather))
 
 				local foundModels = attemptWindowForModels()
 				if not running then break end
@@ -597,27 +593,27 @@ do
 					equippedConfirmed = true
 
 					-- Weather rescan AFTER packs are placed and detected
-					local secondWeather = getWeatherName()
+					local afterPlaceWeather = getWeatherName()
 					local useWeather: string? = nil
 
 					print(string.format(
 						"[Weather] Decision check | start=%s | afterPlace=%s",
-						tostring(loopStartWeather),
-						tostring(secondWeather)
+						tostring(startWeather),
+						tostring(afterPlaceWeather)
 					))
 
-					if loopStartWeather and secondWeather == loopStartWeather then
-						useWeather = loopStartWeather
+					if startWeather and afterPlaceWeather == startWeather then
+						useWeather = startWeather
 						print("[Weather] Persisted -> using WEATHER potion plan for:", useWeather)
 					else
-						if loopStartWeather then
+						if startWeather then
 							print(string.format(
 								"[Weather] Not persisted (changed/ended) -> DEFAULT plan. start=%s now=%s",
-								tostring(loopStartWeather),
-								tostring(secondWeather)
+								tostring(startWeather),
+								tostring(afterPlaceWeather)
 							))
 						else
-							print("[Weather] No weather at loop start -> DEFAULT plan.")
+							print("[Weather] No weather at start of attempt -> DEFAULT plan.")
 						end
 					end
 
