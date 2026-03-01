@@ -30,8 +30,8 @@ local function fire()
 	Grade:FireServer(ACTION, "Shidou")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "King Soccer")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "King Soccer")
+	--task.wait(PER_CALL_DELAY)
 
 	--Grade:FireServer(ACTION, "Nagi")
 	--task.wait(PER_CALL_DELAY)
@@ -55,8 +55,8 @@ local function fire()
 	Grade:FireServer(ACTION, "Toru Oikawa")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Miya Twins")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Miya Twins")
+	--task.wait(PER_CALL_DELAY)
 
 	--Grade:FireServer(ACTION, "Kotaro Bokuto")
 	--task.wait(PER_CALL_DELAY)
@@ -67,8 +67,8 @@ local function fire()
 	--Grade:FireServer(ACTION, "Takanobu Aone")
 	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Nishinoya")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Nishinoya")
+	--task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Kageyama")
 	task.wait(PER_CALL_DELAY)
