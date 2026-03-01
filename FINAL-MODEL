@@ -4,12 +4,10 @@
 -- 2) Pack scanner/buyer (always-on) with DEBUG_SCANNER toggle
 -- 3) Pack placer/opener loop (toggle P)
 --
--- Weather-based potion counts (per attempt):
---  - Each placement attempt has its own "start weather" scan
---  - After packs are placed and models are detected, we rescan weather
---  - Only use weather potion plan if weather persists (same name in both scans)
---  - Improved weather scan: finds ANY BasePart named exactly the weather (multiple parts safe)
---  - Debug prints to show why default vs weather plan is chosen
+-- Updates:
+--  - PACK_SEQUENCE: after Mage-Emerald, add Slime-Gold and Note-Gold
+--  - Potion rule: ONLY Zero/Mage packs use potions (weather/default logic applies)
+--                Any other packs (e.g. Slime/Note) use NO potions regardless of weather.
 
 --========================
 -- Services
@@ -213,6 +211,8 @@ do
 		"Mage-Gold",
 		"Zero-Emerald",
 		"Mage-Emerald",
+		"Slime-Gold",
+		"Note-Gold",
 	}
 
 	-- === TUNING ===
@@ -245,6 +245,13 @@ do
 		Heatwave     = { hatch1 = 29 }, -- hatch2 uses DEFAULT
 
 		["Blood Moon"] = { hatch2 = 0, hatch1 = 22 }, -- NO hatch2s, hatch1=22
+	}
+
+	-- Potion gating:
+	-- Only packs in this allowlist will ever use potions (weather/default logic applies).
+	local POTION_ALLOWED_PACKS = {
+		Zero = true,
+		Mage = true,
 	}
 
 	-- Open packs
@@ -290,7 +297,6 @@ do
 		local weatherFolder = vfx:FindFirstChild("Weather")
 		if not weatherFolder then return nil end
 
-		-- Find ANY BasePart whose name is exactly a weather name
 		for _, inst in ipairs(weatherFolder:GetDescendants()) do
 			if inst:IsA("BasePart") then
 				local n = inst.Name
@@ -316,6 +322,20 @@ do
 		end
 
 		return h2, h1
+	end
+
+	local function packBaseName(packName: string): string
+		-- "Zero-Gold" -> "Zero"
+		local dash = string.find(packName, "-", 1, true)
+		if dash then
+			return string.sub(packName, 1, dash - 1)
+		end
+		return packName
+	end
+
+	local function isPotionAllowedForPack(packName: string): boolean
+		local base = packBaseName(packName)
+		return POTION_ALLOWED_PACKS[base] == true
 	end
 
 	-- State
@@ -542,6 +562,7 @@ do
 	local function mainLoop()
 		print("[Loop] Started. (Press P to stop)  |  Press L to skip current pack")
 		print("[Weather] Per-attempt scan enabled (no sticky weather).")
+		print("[Potions] Only Zero/Mage use potions. All other packs use NO potions.")
 
 		for packIndex = 1, #PACK_SEQUENCE do
 			if not running then break end
@@ -565,7 +586,7 @@ do
 					task.wait(0.05)
 				end
 
-				-- NEW: Per-attempt start weather scan (fresh every attempt)
+				-- Per-attempt weather scan (fresh every attempt)
 				local startWeather = getWeatherName()
 				print(string.format(
 					"[Loop] Attempt %d/%d (%.0fs window) for %s",
@@ -592,35 +613,40 @@ do
 				else
 					equippedConfirmed = true
 
-					-- Weather rescan AFTER packs are placed and detected
-					local afterPlaceWeather = getWeatherName()
-					local useWeather: string? = nil
+					-- Determine potion plan
+					local h2Uses, h1Uses = 0, 0
+					if isPotionAllowedForPack(currentPackName) then
+						local afterPlaceWeather = getWeatherName()
+						local useWeather: string? = nil
 
-					print(string.format(
-						"[Weather] Decision check | start=%s | afterPlace=%s",
-						tostring(startWeather),
-						tostring(afterPlaceWeather)
-					))
+						print(string.format(
+							"[Weather] Decision check | start=%s | afterPlace=%s",
+							tostring(startWeather),
+							tostring(afterPlaceWeather)
+						))
 
-					if startWeather and afterPlaceWeather == startWeather then
-						useWeather = startWeather
-						print("[Weather] Persisted -> using WEATHER potion plan for:", useWeather)
-					else
-						if startWeather then
-							print(string.format(
-								"[Weather] Not persisted (changed/ended) -> DEFAULT plan. start=%s now=%s",
-								tostring(startWeather),
-								tostring(afterPlaceWeather)
-							))
+						if startWeather and afterPlaceWeather == startWeather then
+							useWeather = startWeather
+							print("[Weather] Persisted -> using WEATHER potion plan for:", useWeather)
 						else
-							print("[Weather] No weather at start of attempt -> DEFAULT plan.")
+							if startWeather then
+								print(string.format(
+									"[Weather] Not persisted (changed/ended) -> DEFAULT plan. start=%s now=%s",
+									tostring(startWeather),
+									tostring(afterPlaceWeather)
+								))
+							else
+								print("[Weather] No weather at start of attempt -> DEFAULT plan.")
+							end
 						end
-					end
 
-					local h2Uses, h1Uses = getPotionCountsForWeather(useWeather)
-					print(string.format("[Weather] Potion plan resolved -> H2=%d H1=%d (weatherKey=%s)",
-						h2Uses, h1Uses, tostring(useWeather)
-					))
+						h2Uses, h1Uses = getPotionCountsForWeather(useWeather)
+						print(string.format("[Weather] Potion plan resolved -> H2=%d H1=%d (weatherKey=%s)",
+							h2Uses, h1Uses, tostring(useWeather)
+						))
+					else
+						print(string.format("[Potions] %s is not Zero/Mage -> skipping ALL potions (H2=0 H1=0).", currentPackName))
+					end
 
 					print(string.format("[Loop] Models found for %s -> Potions then Open+Drain.", currentPackName))
 
