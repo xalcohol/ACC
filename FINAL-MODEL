@@ -8,6 +8,8 @@
 -- OPENER:
 --  - Open Zero-Emerald + Mage-Emerald first
 --  - Add Zero-Gold and Mage-Gold right after
+-- NEW:
+--  - Two-phase potion apply: HatchTime2 (X times) then HatchTime1 (Y times)
 
 --========================
 -- Services
@@ -106,8 +108,6 @@ do
 
 	sPrint("[Scanner] Connected to:", packsFolder:GetFullName())
 
-	-- Scenario 2: Always-buy packs (IDENTITY MESH name)
-	-- Slime + Note are always-buy
 	local ALWAYS_BUY = {
 		Pirate = true,
 		Ninja = true,
@@ -118,13 +118,12 @@ do
 		Fire = true,
 		Hero = true,
 		Hunter = true,
-	
+
 		-- Newest Packs
 		Mage = true,
 		Zero = true,
 	}
 
-	-- Scenario 3: Only buy if "Diamond" mutation exists (IDENTITY MESH name)
 	local DIAMOND_ONLY = {
 		Flight = true,
 		Chainsaw = true,
@@ -132,7 +131,6 @@ do
 		Solo = true
 	}
 
-	-- Scenario 4: Only buy if Diamond OR Emerald OR Void mutation exists
 	local MUTATION_REQUIRED = {
 		Slime = true,
 		Note = true,
@@ -186,14 +184,12 @@ do
 		end
 	end
 
-	-- Initial sweep
 	for _, child in ipairs(packsFolder:GetChildren()) do
 		if child:IsA("Model") then
 			scanForMutation(child)
 		end
 	end
 
-	-- Live scan
 	packsFolder.ChildAdded:Connect(function(child)
 		if child:IsA("Model") then
 			scanForMutation(child)
@@ -211,7 +207,7 @@ do
 	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
-	-- Pack names 
+	-- Pack names
 	local PACK_SEQUENCE = {
 		"Zero-Emerald",
 		"Mage-Emerald",
@@ -228,10 +224,14 @@ do
 	local PLACE_COOLDOWN = 0.08
 	local AFTER_PLACE_WAIT = 3.0
 
-	-- Potions
-	local POTION_NAME = "HatchTime2"
-	local POTION_USES = 14
+	-- Potions (NEW: two-phase)
 	local POTION_DELAY = 0.10
+
+	local HATCH2_NAME = "HatchTime2"
+	local HATCH2_USES = 1
+
+	local HATCH1_NAME = "HatchTime1"
+	local HATCH1_USES = 38      -- set to what you want (ex: 40). 0 disables this phase.
 
 	-- Open packs
 	local OPEN_KEY = Enum.KeyCode.E
@@ -240,8 +240,8 @@ do
 	local OPEN_PRESS_DURATION = 0.05
 
 	-- Failsafe tuning
-	local NO_MODEL_TIMEOUT = 20.0 -- seconds per failsafe window
-	local FAILS_PER_PACK = 2      -- failed windows before moving to next pack
+	local NO_MODEL_TIMEOUT = 20.0
+	local FAILS_PER_PACK = 2
 
 	-- Post-open drain
 	local POST_OPEN_MAX_PASSES = 12
@@ -250,7 +250,7 @@ do
 
 	-- Keybinds
 	local TOGGLE_KEY = Enum.KeyCode.P
-	local SKIP_KEY = Enum.KeyCode.L -- skip current pack immediately
+	local SKIP_KEY = Enum.KeyCode.L
 
 	-- Placed packs folder path
 	local PLOTS_FOLDER_NAME = "Plots"
@@ -296,14 +296,22 @@ do
 		CardRemote:FireServer("Place", currentPackName)
 	end
 
+	-- NEW: two-phase potion apply
 	local function applyPotions()
-		for i = 1, POTION_USES do
+		-- Phase 1: HatchTime2
+		for i = 1, HATCH2_USES do
 			if not running or skipRequested then return false end
-			PotionRemote:FireServer("Apply", POTION_NAME)
-			if POTION_DELAY > 0 then
-				task.wait(POTION_DELAY)
-			end
+			PotionRemote:FireServer("Apply", HATCH2_NAME)
+			if POTION_DELAY > 0 then task.wait(POTION_DELAY) end
 		end
+
+		-- Phase 2: HatchTime1
+		for i = 1, HATCH1_USES do
+			if not running or skipRequested then return false end
+			PotionRemote:FireServer("Apply", HATCH1_NAME)
+			if POTION_DELAY > 0 then task.wait(POTION_DELAY) end
+		end
+
 		return true
 	end
 
@@ -520,7 +528,7 @@ do
 					task.wait(0.25)
 				else
 					equippedConfirmed = true
-					print(string.format("[Loop] Models found for %s -> Potions(40) then Open+Drain.", currentPackName))
+					print(string.format("[Loop] Models found for %s -> Potions (H2 then H1) then Open+Drain.", currentPackName))
 
 					local okPotions = applyPotions()
 					if not okPotions or not running then break end
