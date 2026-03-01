@@ -33,11 +33,11 @@ local function fire()
 	Grade:FireServer(ACTION, "King Soccer")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Nagi")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Nagi")
+	--task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Kunigami")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Kunigami")
+	--task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Chigiri")
 	task.wait(PER_CALL_DELAY)
@@ -45,8 +45,8 @@ local function fire()
 	Grade:FireServer(ACTION, "Bachira")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Isagi")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Isagi")
+	--task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
 	Grade:FireServer(ACTION, "Wakatoshi Ushijima")
@@ -64,8 +64,8 @@ local function fire()
 	Grade:FireServer(ACTION, "Tetsuro Kuroo")
 	task.wait(PER_CALL_DELAY)
 
-	Grade:FireServer(ACTION, "Takanobu Aone")
-	task.wait(PER_CALL_DELAY)
+	--Grade:FireServer(ACTION, "Takanobu Aone")
+	--task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Nishinoya")
 	task.wait(PER_CALL_DELAY)
