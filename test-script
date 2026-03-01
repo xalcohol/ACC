@@ -21,21 +21,21 @@ local function fire()
 	if not alive then return end
 
 	-- Pack 1
-	---Grade:FireServer(ACTION, "XXX")
-	---task.wait(PER_CALL_DELAY)
+	Grade:FireServer(ACTION, "Reinhard")
+	-task.wait(PER_CALL_DELAY)
 
-	--Grade:FireServer(ACTION, "XXX")
-	--task.wait(PER_CALL_DELAY)
+	Grade:FireServer(ACTION, "Emilia")
+	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Ram")
 	task.wait(PER_CALL_DELAY)
 
 	-- Pack 2
-	--Grade:FireServer(ACTION, "XXX")
-	--task.wait(PER_CALL_DELAY)
+	Grade:FireServer(ACTION, "Serie")
+	task.wait(PER_CALL_DELAY)
 
-	--Grade:FireServer(ACTION, "XXX")
-	--task.wait(PER_CALL_DELAY)
+	Grade:FireServer(ACTION, "Flamme")
+	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Denken")
 	task.wait(PER_CALL_DELAY)
@@ -44,7 +44,7 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
-	-- Grade:FireServer(ACTION, "Morgana")
+	-- Grade:FireServer(ACTION, "Example")
 end
 
 -- Loop
