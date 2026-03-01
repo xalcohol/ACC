@@ -6,9 +6,8 @@
 --
 -- Latest updates:
 -- OPENER:
---  - Keep Slime-Gold and Note-Gold first
---  - Add Slime-Emerald and Note-Emerald immediately after
---  - Keep Sins/Fairy/Bizarre/Geass as Emerald after that
+--  - Open Zero-Emerald + Mage-Emerald first
+--  - Add Zero-Gold and Mage-Gold right after
 
 --========================
 -- Services
@@ -119,8 +118,8 @@ do
 		Fire = true,
 		Hero = true,
 		Hunter = true,
-		Slime = true,
-		Note = true,
+	
+		-- Newest Packs
 		Mage = true,
 		Zero = true,
 	}
@@ -135,6 +134,8 @@ do
 
 	-- Scenario 4: Only buy if Diamond OR Emerald OR Void mutation exists
 	local MUTATION_REQUIRED = {
+		Slime = true,
+		Note = true,
 		Sins = true,
 		Fairy = true,
 		Bizarre = true,
@@ -210,12 +211,12 @@ do
 	local QC = Vector3.new(-570.654053, 7.1538558,  -152.937439)
 	local QD = Vector3.new(-570.425293, 7.1538558,  -93.1411057)
 
-	-- Pack names (UPDATED: add Emerald versions after Gold)
+	-- Pack names 
 	local PACK_SEQUENCE = {
-		"Slime-Gold",
-		"Note-Gold",
-		"Slime-Emerald",
-		"Note-Emerald",
+		"Zero-Emerald",
+		"Mage-Emerald",
+		"Zero-Gold",
+		"Mage-Gold",
 	}
 
 	-- === TUNING ===
@@ -228,8 +229,8 @@ do
 	local AFTER_PLACE_WAIT = 3.0
 
 	-- Potions
-	local POTION_NAME = "HatchTime1"
-	local POTION_USES = 40
+	local POTION_NAME = "HatchTime2"
+	local POTION_USES = 14
 	local POTION_DELAY = 0.10
 
 	-- Open packs
