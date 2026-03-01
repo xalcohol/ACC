@@ -22,7 +22,7 @@ local function fire()
 
 	-- Pack 1
 	Grade:FireServer(ACTION, "Reinhard")
-	-task.wait(PER_CALL_DELAY)
+	task.wait(PER_CALL_DELAY)
 
 	Grade:FireServer(ACTION, "Emilia")
 	task.wait(PER_CALL_DELAY)
@@ -30,7 +30,6 @@ local function fire()
 	Grade:FireServer(ACTION, "Ram")
 	task.wait(PER_CALL_DELAY)
 
-	-- Pack 2
 	Grade:FireServer(ACTION, "Serie")
 	task.wait(PER_CALL_DELAY)
 
@@ -44,7 +43,7 @@ local function fire()
 	task.wait(PER_CALL_DELAY)
 
 	-- task.wait(PER_CALL_DELAY)
-	-- Grade:FireServer(ACTION, "Example")
+	-- Grade:FireServer(ACTION, "Morgana")
 end
 
 -- Loop
