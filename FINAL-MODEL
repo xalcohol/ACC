@@ -209,10 +209,10 @@ do
 
 	-- Pack names
 	local PACK_SEQUENCE = {
-		"Zero-Emerald",
-		"Mage-Emerald",
 		"Zero-Gold",
 		"Mage-Gold",
+		"Zero-Emerald",
+		"Mage-Emerald",
 	}
 
 	-- === TUNING ===
@@ -231,7 +231,7 @@ do
 	local HATCH2_USES = 1
 
 	local HATCH1_NAME = "HatchTime1"
-	local HATCH1_USES = 38      -- set to what you want (ex: 40). 0 disables this phase.
+	local HATCH1_USES = 39      -- set to what you want (ex: 40). 0 disables this phase.
 
 	-- Open packs
 	local OPEN_KEY = Enum.KeyCode.E
