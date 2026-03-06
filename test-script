@@ -522,39 +522,73 @@ newFrame(cardFrame,{
 yOff+=12
 
 -- Bottom row: [AUTO OFF] [⚙] [◉] [📁]  →→→  [✕]  |  status right-aligned
-local autoBtn=newButton(cardFrame,{
-    Position=UDim2.new(0,PAD,0,yOff), Size=UDim2.new(0,106,0,30),
+-- Bottom row: all buttons in a single layout frame for clean even spacing
+local btnRow=newFrame(cardFrame,{
+    BackgroundTransparency=1,
+    Position=UDim2.new(0,PAD,0,yOff),
+    Size=UDim2.new(1,-PAD*2,0,32), ZIndex=13,
+})
+local btnRowLayout=Instance.new("UIListLayout")
+btnRowLayout.FillDirection=Enum.FillDirection.Horizontal
+btnRowLayout.Padding=UDim.new(0,6)
+btnRowLayout.SortOrder=Enum.SortOrder.LayoutOrder
+btnRowLayout.Parent=btnRow
+
+-- AUTO button — wider, left-most
+local autoBtn=newButton(btnRow,{
+    Size=UDim2.new(0,96,0,32),
     BackgroundColor3=C.btnBg, Font=Enum.Font.GothamBold,
     TextSize=11, TextColor3=C.textDim, Text="AUTO  OFF", ZIndex=13,
 })
+autoBtn.LayoutOrder=1
 addCorner(autoBtn,8)
 local autoBtnStroke=addStroke(autoBtn,1.5,C.btnBorder)
 
--- Inline icon tab buttons: ⚙ ◉ 📁
-local function makeInlineTabBtn(icon, xPos)
-    local b=newButton(cardFrame,{
-        Position=UDim2.new(0,xPos,0,yOff), Size=UDim2.new(0,30,0,30),
+-- Spacer frame (pushes icons+kill to right)
+local btnSpacer=newFrame(btnRow,{
+    BackgroundTransparency=1,
+    Size=UDim2.new(1,-96-32-32-32-32-6*5,0,32), ZIndex=13,
+})
+btnSpacer.LayoutOrder=2
+
+-- Icon tab buttons
+local function makeInlineTabBtn(icon, order)
+    local b=newButton(btnRow,{
+        Size=UDim2.new(0,32,0,32),
         BackgroundColor3=C.btnBg,
-        Font=Enum.Font.Gotham, TextSize=14,
+        Font=Enum.Font.GothamBold, TextSize=13,
         TextColor3=C.textDim, Text=icon, ZIndex=13,
     })
+    b.LayoutOrder=order
     addCorner(b,8); addStroke(b,1.5,C.btnBorder); return b
 end
 
-local settingsTabBtn = makeInlineTabBtn("⚙", PAD+112)
-local webhookTabBtn  = makeInlineTabBtn("◉", PAD+148)
-local configTabBtn   = makeInlineTabBtn("📁", PAD+184)
+local settingsTabBtn = makeInlineTabBtn("S", 3)   -- ⚙ fallback to letter
+local webhookTabBtn  = makeInlineTabBtn("W", 4)   -- ◉ fallback
+local configTabBtn   = makeInlineTabBtn("C", 5)   -- 📁 fallback
 
--- Kill button anchored to far right
-local killBtn=newButton(cardFrame,{
-    AnchorPoint=Vector2.new(1,0),
-    Position=UDim2.new(1,-PAD,0,yOff), Size=UDim2.new(0,30,0,30),
+-- Use GothamBold small labels inside each button so they look intentional
+local function labelBtn(btn, text, color)
+    local l=newLabel(btn,{
+        Size=UDim2.new(1,0,1,0), Font=Enum.Font.GothamBold, TextSize=10,
+        TextColor3=color or C.textDim, Text=text, ZIndex=14,
+    })
+    return l
+end
+labelBtn(settingsTabBtn, "SET", Color3.fromRGB(72,72,108))
+labelBtn(webhookTabBtn,  "WH",  Color3.fromRGB(72,72,108))
+labelBtn(configTabBtn,   "CFG", Color3.fromRGB(72,72,108))
+
+-- Kill button — rightmost, red tinted
+local killBtn=newButton(btnRow,{
+    Size=UDim2.new(0,32,0,32),
     BackgroundColor3=C.redDark, Font=Enum.Font.GothamBold,
-    TextSize=13, TextColor3=Color3.fromRGB(90,32,32), Text="✕", ZIndex=13,
+    TextSize=12, TextColor3=Color3.fromRGB(120,40,40), Text="X", ZIndex=13,
 })
+killBtn.LayoutOrder=6
 addCorner(killBtn,8); addStroke(killBtn,1.5,C.redBorder)
 
-yOff+=42
+yOff+=40
 
 local CARD_H=yOff
 cardFrame.Size=UDim2.new(0,CARD_W,0,CARD_H)
@@ -607,7 +641,7 @@ local function makeSubWin(name, w, h)
 end
 
 -- ── SETTINGS WINDOW ──────────────────────────────────────────
-local settingsWin, settingsStroke, settingsCloseBtn = makeSubWin("Settings",300,480)
+local settingsWin, settingsStroke, settingsCloseBtn = makeSubWin("Settings",290,320)
 
 -- scrollable body
 local settingsBody=newFrame(settingsWin,{
@@ -1603,10 +1637,10 @@ local function closeAllSubWins()
     for _, entry in ipairs(subWinList) do
         entry.win.Visible = false
         entry.btn.BackgroundColor3 = C.btnBg
-        entry.btn.TextColor3 = C.textDim
-        -- reset stroke via UIStroke child
         local s = entry.btn:FindFirstChildOfClass("UIStroke")
         if s then s.Color = C.btnBorder end
+        local lbl = entry.btn:FindFirstChildOfClass("TextLabel")
+        if lbl then lbl.TextColor3 = Color3.fromRGB(72,72,108) end
     end
 end
 
@@ -1616,9 +1650,10 @@ local function toggleSubWin(win, btn)
     if not wasOpen then
         openSubWin(win)
         btn.BackgroundColor3 = Color3.fromRGB(22,22,42)
-        btn.TextColor3 = C.white
         local s = btn:FindFirstChildOfClass("UIStroke")
         if s then s.Color = Color3.fromRGB(85,85,170) end
+        local lbl = btn:FindFirstChildOfClass("TextLabel")
+        if lbl then lbl.TextColor3 = Color3.fromRGB(170,170,238) end
     end
 end
 
