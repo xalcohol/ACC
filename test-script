@@ -522,73 +522,39 @@ newFrame(cardFrame,{
 yOff+=12
 
 -- Bottom row: [AUTO OFF] [⚙] [◉] [📁]  →→→  [✕]  |  status right-aligned
--- Bottom row: all buttons in a single layout frame for clean even spacing
-local btnRow=newFrame(cardFrame,{
-    BackgroundTransparency=1,
-    Position=UDim2.new(0,PAD,0,yOff),
-    Size=UDim2.new(1,-PAD*2,0,32), ZIndex=13,
-})
-local btnRowLayout=Instance.new("UIListLayout")
-btnRowLayout.FillDirection=Enum.FillDirection.Horizontal
-btnRowLayout.Padding=UDim.new(0,6)
-btnRowLayout.SortOrder=Enum.SortOrder.LayoutOrder
-btnRowLayout.Parent=btnRow
-
--- AUTO button — wider, left-most
-local autoBtn=newButton(btnRow,{
-    Size=UDim2.new(0,96,0,32),
+-- Bottom row: [AUTO] [⚙] [◉] [📁]  ···  [X]
+local autoBtn=newButton(cardFrame,{
+    Position=UDim2.new(0,PAD,0,yOff), Size=UDim2.new(0,88,0,28),
     BackgroundColor3=C.btnBg, Font=Enum.Font.GothamBold,
     TextSize=11, TextColor3=C.textDim, Text="AUTO  OFF", ZIndex=13,
 })
-autoBtn.LayoutOrder=1
 addCorner(autoBtn,8)
 local autoBtnStroke=addStroke(autoBtn,1.5,C.btnBorder)
 
--- Spacer frame (pushes icons+kill to right)
-local btnSpacer=newFrame(btnRow,{
-    BackgroundTransparency=1,
-    Size=UDim2.new(1,-96-32-32-32-32-6*5,0,32), ZIndex=13,
-})
-btnSpacer.LayoutOrder=2
-
--- Icon tab buttons
-local function makeInlineTabBtn(icon, order)
-    local b=newButton(btnRow,{
-        Size=UDim2.new(0,32,0,32),
+local function makeInlineTabBtn(icon, xPos)
+    local b=newButton(cardFrame,{
+        Position=UDim2.new(0,xPos,0,yOff), Size=UDim2.new(0,28,0,28),
         BackgroundColor3=C.btnBg,
-        Font=Enum.Font.GothamBold, TextSize=13,
+        Font=Enum.Font.Gotham, TextSize=14,
         TextColor3=C.textDim, Text=icon, ZIndex=13,
     })
-    b.LayoutOrder=order
     addCorner(b,8); addStroke(b,1.5,C.btnBorder); return b
 end
 
-local settingsTabBtn = makeInlineTabBtn("S", 3)   -- ⚙ fallback to letter
-local webhookTabBtn  = makeInlineTabBtn("W", 4)   -- ◉ fallback
-local configTabBtn   = makeInlineTabBtn("C", 5)   -- 📁 fallback
+local settingsTabBtn = makeInlineTabBtn("⚙", PAD+94)
+local webhookTabBtn  = makeInlineTabBtn("◉", PAD+128)
+local configTabBtn   = makeInlineTabBtn("📁", PAD+162)
 
--- Use GothamBold small labels inside each button so they look intentional
-local function labelBtn(btn, text, color)
-    local l=newLabel(btn,{
-        Size=UDim2.new(1,0,1,0), Font=Enum.Font.GothamBold, TextSize=10,
-        TextColor3=color or C.textDim, Text=text, ZIndex=14,
-    })
-    return l
-end
-labelBtn(settingsTabBtn, "SET", Color3.fromRGB(72,72,108))
-labelBtn(webhookTabBtn,  "WH",  Color3.fromRGB(72,72,108))
-labelBtn(configTabBtn,   "CFG", Color3.fromRGB(72,72,108))
-
--- Kill button — rightmost, red tinted
-local killBtn=newButton(btnRow,{
-    Size=UDim2.new(0,32,0,32),
+-- Kill button — far right, plain "X" (unicode ✕ renders as box on some fonts)
+local killBtn=newButton(cardFrame,{
+    AnchorPoint=Vector2.new(1,0),
+    Position=UDim2.new(1,-PAD,0,yOff), Size=UDim2.new(0,28,0,28),
     BackgroundColor3=C.redDark, Font=Enum.Font.GothamBold,
-    TextSize=12, TextColor3=Color3.fromRGB(120,40,40), Text="X", ZIndex=13,
+    TextSize=12, TextColor3=Color3.fromRGB(140,40,40), Text="X", ZIndex=13,
 })
-killBtn.LayoutOrder=6
 addCorner(killBtn,8); addStroke(killBtn,1.5,C.redBorder)
 
-yOff+=40
+yOff+=38
 
 local CARD_H=yOff
 cardFrame.Size=UDim2.new(0,CARD_W,0,CARD_H)
@@ -627,7 +593,7 @@ local function makeSubWin(name, w, h)
         BackgroundTransparency=1,
         Font=Enum.Font.GothamBold, TextSize=12,
         TextColor3=Color3.fromRGB(51,51,72),
-        Text="\xe2\x9c\x95", ZIndex=22,
+        Text="x", ZIndex=22,
     })
 
     -- divider under title
@@ -1080,7 +1046,7 @@ local function renderConfigList()
             Size=UDim2.new(0,26,0,26),
             BackgroundTransparency=1,
             Font=Enum.Font.GothamBold, TextSize=11,
-            TextColor3=Color3.fromRGB(80,30,30), Text="✕", ZIndex=26,
+            TextColor3=Color3.fromRGB(80,30,30), Text="x", ZIndex=26,
         })
         delBtn2.MouseButton1Click:Connect(function()
             if autoloadName==savedConfigs[ci].name then autoloadName=nil end
@@ -1225,7 +1191,7 @@ local function renderConditions()
             Size=UDim2.new(0,18,0,18),
             BackgroundTransparency=1,
             Font=Enum.Font.GothamBold, TextSize=12,
-            TextColor3=Color3.fromRGB(42,24,24), Text="\xe2\x9c\x95", ZIndex=26,
+            TextColor3=Color3.fromRGB(42,24,24), Text="x", ZIndex=26,
         })
         local idx=i
         delBtn.MouseButton1Click:Connect(function()
@@ -1637,10 +1603,9 @@ local function closeAllSubWins()
     for _, entry in ipairs(subWinList) do
         entry.win.Visible = false
         entry.btn.BackgroundColor3 = C.btnBg
+        entry.btn.TextColor3 = C.textDim
         local s = entry.btn:FindFirstChildOfClass("UIStroke")
         if s then s.Color = C.btnBorder end
-        local lbl = entry.btn:FindFirstChildOfClass("TextLabel")
-        if lbl then lbl.TextColor3 = Color3.fromRGB(72,72,108) end
     end
 end
 
@@ -1650,10 +1615,9 @@ local function toggleSubWin(win, btn)
     if not wasOpen then
         openSubWin(win)
         btn.BackgroundColor3 = Color3.fromRGB(22,22,42)
+        btn.TextColor3 = C.white
         local s = btn:FindFirstChildOfClass("UIStroke")
         if s then s.Color = Color3.fromRGB(85,85,170) end
-        local lbl = btn:FindFirstChildOfClass("TextLabel")
-        if lbl then lbl.TextColor3 = Color3.fromRGB(170,170,238) end
     end
 end
 
