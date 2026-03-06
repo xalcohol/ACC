@@ -633,7 +633,7 @@ local function makeSubWin(name, w, h)
 end
 
 -- ── SETTINGS WINDOW ──────────────────────────────────────────
-local settingsWin, settingsStroke, settingsCloseBtn = makeSubWin("Settings",300,400)
+local settingsWin, settingsStroke, settingsCloseBtn = makeSubWin("Settings",300,480)
 
 -- scrollable body
 local settingsBody=newFrame(settingsWin,{
@@ -653,13 +653,18 @@ settingsScroll.ScrollBarThickness=3
 settingsScroll.ScrollBarImageColor3=Color3.fromRGB(40,40,56)
 settingsScroll.ZIndex=22
 settingsScroll.Parent=settingsBody
-addPadding(settingsScroll,12)
-addListLayout(settingsScroll,8)
+do
+    local p=Instance.new("UIPadding")
+    p.PaddingLeft=UDim.new(0,12); p.PaddingRight=UDim.new(0,12)
+    p.PaddingTop=UDim.new(0,10);  p.PaddingBottom=UDim.new(0,10)
+    p.Parent=settingsScroll
+end
+addListLayout(settingsScroll,6)
 
 -- ── helper: section label ──
 local function sectionLabel(parent, text, order)
     local l=newLabel(parent,{
-        Size=UDim2.new(1,0,0,14),
+        Size=UDim2.new(1,0,0,16),
         Font=Enum.Font.GothamBold, TextSize=9,
         TextColor3=C.textFaint, Text=text, ZIndex=23,
     })
@@ -670,7 +675,7 @@ end
 local function makeToggleRow(parent, labelText, initOn, order)
     local row=newFrame(parent,{
         BackgroundColor3=C.rowBg,
-        Size=UDim2.new(1,-24,0,32), ZIndex=23,
+        Size=UDim2.new(1,0,0,32), ZIndex=23,
     })
     addCorner(row,7)
     addStroke(row,1,C.rowBorder)
@@ -723,7 +728,7 @@ sectionLabel(settingsScroll,"CONDITIONS",1)
 -- conditions dropdown header
 local condHeaderRow=newFrame(settingsScroll,{
     BackgroundColor3=C.rowBg,
-    Size=UDim2.new(1,-24,0,34), ZIndex=23,
+    Size=UDim2.new(1,0,0,34), ZIndex=23,
 })
 addCorner(condHeaderRow,7)
 addStroke(condHeaderRow,1,C.rowBorder)
@@ -751,7 +756,7 @@ local condChevBtn=newButton(condHeaderRow,{
 -- conditions list container (shown/hidden)
 local condListContainer=newFrame(settingsScroll,{
     BackgroundTransparency=1,
-    Size=UDim2.new(1,-24,0,0),
+    Size=UDim2.new(1,0,0,0),
     ZIndex=23, Visible=false,
     Name="CondList",
 })
@@ -762,7 +767,7 @@ addListLayout(condListContainer,3)
 -- Add condition button
 local addCondBtn=newButton(settingsScroll,{
     BackgroundColor3=Color3.fromRGB(17,17,32),
-    Size=UDim2.new(1,-24,0,32), ZIndex=23,
+    Size=UDim2.new(1,0,0,32), ZIndex=23,
     Font=Enum.Font.GothamSemibold, TextSize=11,
     TextColor3=C.textMuted, Text="+ Add Condition",
 })
@@ -778,7 +783,7 @@ local globalStopRow,getGlobalStop,setGlobalStop=makeToggleRow(settingsScroll,"Tr
 sectionLabel(settingsScroll,"ROLL",7)
 local delayRow=newFrame(settingsScroll,{
     BackgroundColor3=C.rowBg,
-    Size=UDim2.new(1,-24,0,32), ZIndex=23,
+    Size=UDim2.new(1,0,0,32), ZIndex=23,
 })
 addCorner(delayRow,7)
 addStroke(delayRow,1,C.rowBorder)
@@ -797,22 +802,27 @@ local delayVal=newLabel(delayRow,{
 })
 
 -- ── WEBHOOK WINDOW ───────────────────────────────────────────
-local webhookWin, webhookStroke, webhookCloseBtn = makeSubWin("Webhook",270,280)
+local webhookWin, webhookStroke, webhookCloseBtn = makeSubWin("Webhook",290,340)
 
 local wBody=newFrame(webhookWin,{
     BackgroundTransparency=1,
     Position=UDim2.new(0,0,0,37),
     Size=UDim2.new(1,0,1,-37), ZIndex=21,
 })
-addPadding(wBody,12)
-addListLayout(wBody,8)
+do
+    local p=Instance.new("UIPadding")
+    p.PaddingLeft=UDim.new(0,12); p.PaddingRight=UDim.new(0,12)
+    p.PaddingTop=UDim.new(0,10);  p.PaddingBottom=UDim.new(0,10)
+    p.Parent=wBody
+end
+addListLayout(wBody,6)
 
 sectionLabel(wBody,"DISCORD WEBHOOK URL",1)
 
 local urlBox=Instance.new("TextBox")
 urlBox.BackgroundColor3=Color3.fromRGB(20,20,32)
 urlBox.BorderSizePixel=0
-urlBox.Size=UDim2.new(1,-24,0,32)
+urlBox.Size=UDim2.new(1,0,0,32)
 urlBox.Font=Enum.Font.Code; urlBox.TextSize=10
 urlBox.TextColor3=Color3.fromRGB(85,85,170)
 urlBox.PlaceholderText="https://discord.com/api/webhooks/..."
@@ -825,7 +835,7 @@ addPadding(urlBox,8)
 
 local testBtn=newButton(wBody,{
     BackgroundColor3=Color3.fromRGB(18,18,32),
-    Size=UDim2.new(1,-24,0,32), ZIndex=23,
+    Size=UDim2.new(1,0,0,32), ZIndex=23,
     Font=Enum.Font.GothamBold, TextSize=11,
     TextColor3=C.textMuted, Text="Test Webhook",
 })
@@ -871,7 +881,7 @@ local function renderConditions()
     for i, cond in ipairs(Conditions) do
         local item=newFrame(condListContainer,{
             BackgroundColor3=Color3.fromRGB(19,19,24),
-            Size=UDim2.new(1,0,0,56), ZIndex=24,
+            Size=UDim2.new(1,0,0,58), ZIndex=24,
         })
         addCorner(item,6)
         addStroke(item,1,Color3.fromRGB(25,25,38))
