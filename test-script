@@ -1127,40 +1127,52 @@ local function setWizStep(s)
         })
         statsLbl.LayoutOrder=3
 
+        local statKeys={"minStr","minSpd","minSpc"}
         for i,statName in ipairs({"STR","SPD","SPC"}) do
-            local key=({[1]="minStr",[2]="minSpd",[3]="minSpc"})[i]
+            local key=statKeys[i]
             local row=newFrame(wizScroll,{
                 BackgroundColor3=C.rowBg,
-                Size=UDim2.new(1,-28,0,32), ZIndex=23,
+                Size=UDim2.new(1,-28,0,36), ZIndex=23,
             })
             addCorner(row,7)
             addStroke(row,1,C.rowBorder)
             row.LayoutOrder=3+i
 
+            -- stat label on left
             newLabel(row,{
-                Position=UDim2.new(0,10,0,0), Size=UDim2.new(0,28,1,0),
+                Position=UDim2.new(0,10,0,0), Size=UDim2.new(0,30,1,0),
                 Font=Enum.Font.GothamBold, TextSize=9,
                 TextColor3=C.textFaint, Text=statName, ZIndex=24,
             })
 
-            local xOff=40
-            for _, g in ipairs(GRADE_NAMES) do
+            -- grade buttons in a layout frame so they never overflow
+            local gradeHolder=newFrame(row,{
+                BackgroundTransparency=1,
+                Position=UDim2.new(0,44,0,4),
+                Size=UDim2.new(1,-54,0,28), ZIndex=24,
+            })
+            local gl=Instance.new("UIListLayout")
+            gl.FillDirection=Enum.FillDirection.Horizontal
+            gl.Padding=UDim.new(0,4)
+            gl.SortOrder=Enum.SortOrder.LayoutOrder
+            gl.Parent=gradeHolder
+
+            for gi, g in ipairs(GRADE_NAMES) do
                 local sel=wData[key]==g
                 local gv=g
-                local gradebtn=newButton(row,{
-                    Position=UDim2.new(0,xOff,0.5,-12),
-                    Size=UDim2.new(0,26,0,24),
+                local gradebtn=newButton(gradeHolder,{
+                    Size=UDim2.new(0,36,0,28),
                     BackgroundColor3=sel and Color3.fromRGB(18,14,4) or Color3.fromRGB(17,17,24),
                     Font=Enum.Font.Code, TextSize=13,
                     TextColor3=sel and gc(g) or Color3.fromRGB(46,46,60),
-                    Text=g, ZIndex=24,
+                    Text=g, ZIndex=25,
                 })
+                gradebtn.LayoutOrder=gi
                 addCorner(gradebtn,5)
-                addStroke(gradebtn,1.5,sel and (gc(g)*0.6+Color3.fromRGB(0,0,0)*0.4) or Color3.fromRGB(30,30,40))
+                addStroke(gradebtn,1.5,sel and Color3.fromRGB(80,60,10) or Color3.fromRGB(30,30,40))
                 gradebtn.MouseButton1Click:Connect(function()
                     wData[key]=gv; setWizStep(0)
                 end)
-                xOff+=30
             end
         end
 
@@ -1239,41 +1251,32 @@ local function setWizStep(s)
         })
         subLbl.TextWrapped=true; subLbl.LayoutOrder=1
 
-        local chipFrame=newFrame(wizScroll,{
+        -- UIGridLayout: 3 columns, auto-wrapping chips
+        local chipGrid=newFrame(wizScroll,{
             BackgroundTransparency=1,
             Size=UDim2.new(1,-28,0,0), ZIndex=23,
         })
-        chipFrame.AutomaticSize=Enum.AutomaticSize.Y
-        chipFrame.LayoutOrder=2
-        local chipFlow=Instance.new("UIGridLayout")
-        chipFlow.CellSize=UDim2.new(0,0,0,28)
-        chipFlow.CellPadding=UDim2.new(0,6,0,6)
-        chipFlow.SortOrder=Enum.SortOrder.LayoutOrder
-        chipFlow.Parent=chipFrame
-        -- use auto-size buttons instead
-        local cf2=newFrame(wizScroll,{BackgroundTransparency=1,Size=UDim2.new(1,-28,0,0),ZIndex=23})
-        cf2.AutomaticSize=Enum.AutomaticSize.Y; cf2.LayoutOrder=2
-        local fl=Instance.new("UIListLayout")
-        fl.FillDirection=Enum.FillDirection.Horizontal
-        fl.Padding=UDim.new(0,6)
-        fl.SortOrder=Enum.SortOrder.LayoutOrder
-        fl.Parent=cf2
-        -- note: no Wraps property in Roblox; chips overflow horizontally, scroll handles it
-        chipFrame:Destroy()
+        chipGrid.AutomaticSize=Enum.AutomaticSize.Y
+        chipGrid.LayoutOrder=2
+        local cgl=Instance.new("UIGridLayout")
+        cgl.CellSize=UDim2.new(0.333,-4,0,32)
+        cgl.CellPadding=UDim2.new(0,5,0,5)
+        cgl.SortOrder=Enum.SortOrder.LayoutOrder
+        cgl.Parent=chipGrid
 
-        for _, trait in ipairs(TRAITS) do
+        for ci, trait in ipairs(TRAITS) do
             local sel=table.find(wData.traits,trait)~=nil
             local tv=trait
-            local chip=newButton(cf2,{
+            local chip=newButton(chipGrid,{
                 BackgroundColor3=sel and Color3.fromRGB(12,12,36) or Color3.fromRGB(20,20,32),
-                Size=UDim2.new(0,90,0,28),
+                Size=UDim2.new(0,1,0,1), -- overridden by UIGridLayout
                 Font=Enum.Font.GothamSemibold, TextSize=11,
                 TextColor3=sel and Color3.fromRGB(170,170,238) or C.textDim,
                 Text=tv, ZIndex=24,
             })
-            addCorner(chip,100)
+            chip.LayoutOrder=ci
+            addCorner(chip,8)
             addStroke(chip,1.5,sel and Color3.fromRGB(85,85,187) or Color3.fromRGB(30,30,48))
-            addPadding(chip,10)
             chip.MouseButton1Click:Connect(function()
                 local idx=table.find(wData.traits,tv)
                 if idx then table.remove(wData.traits,idx)
