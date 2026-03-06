@@ -209,10 +209,11 @@ local function sendWebhook(info, reason)
             color = 0xF0C030,
         }},
     })
-    task.spawn(function()
-        pcall(HttpService.PostAsync, HttpService,
-              Settings.webhookURL, body, Enum.HttpContentType.ApplicationJson)
-    end)
+    -- HttpService:PostAsync is server-only; fire to server script via RemoteEvent
+    local remote = ReplicatedStorage:FindFirstChild("WebhookProxy")
+    if remote then
+        remote:FireServer(Settings.webhookURL, body)
+    end
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -575,6 +576,8 @@ end
 local settingsTabBtn = makeStripBtn("\xe2\x9a\x99",10)
 local webhookTabBtn  = makeStripBtn("\xe2\x97\x89",46)
 
+local configTabBtn  = makeStripBtn("ð",82)  -- 📁
+
 local stripKillBtn=newButton(tabStrip,{
     AnchorPoint=Vector2.new(0.5,1),
     Position=UDim2.new(0.5,0,1,-10),
@@ -855,6 +858,268 @@ table.insert(connections, RunService.Heartbeat:Connect(function()
     Settings.webhookOnCondition = getWHCond()
     Settings.webhookOnGlobal    = getWHGlobal()
 end))
+
+-- ═══════════════════════════════════════════════════════════
+--  CONFIG WINDOW  (save / load / autoload named configs)
+--  Configs stored as JSON in a StringValue under PlayerData
+--  so they persist across sessions via server-side DataStore
+--  (or fall back to in-memory if DataStore unavailable)
+-- ═══════════════════════════════════════════════════════════
+local configWin, configStroke, configCloseBtn = makeSubWin("Configs",300,420)
+
+local cfgBody=newFrame(configWin,{
+    BackgroundTransparency=1,
+    Position=UDim2.new(0,0,0,37),
+    Size=UDim2.new(1,0,1,-37), ZIndex=21,
+})
+do
+    local p=Instance.new("UIPadding")
+    p.PaddingLeft=UDim.new(0,12); p.PaddingRight=UDim.new(0,12)
+    p.PaddingTop=UDim.new(0,10);  p.PaddingBottom=UDim.new(0,10)
+    p.Parent=cfgBody
+end
+addListLayout(cfgBody,6)
+
+sectionLabel(cfgBody,"SAVE CONFIG",1)
+
+-- Config name input
+local cfgNameBox=Instance.new("TextBox")
+cfgNameBox.BackgroundColor3=Color3.fromRGB(20,20,32)
+cfgNameBox.BorderSizePixel=0
+cfgNameBox.Size=UDim2.new(1,0,0,32)
+cfgNameBox.Font=Enum.Font.GothamSemibold; cfgNameBox.TextSize=11
+cfgNameBox.TextColor3=Color3.fromRGB(170,170,200)
+cfgNameBox.PlaceholderText="Config name..."
+cfgNameBox.PlaceholderColor3=Color3.fromRGB(36,36,56)
+cfgNameBox.Text=""; cfgNameBox.ClearTextOnFocus=false
+cfgNameBox.TextXAlignment=Enum.TextXAlignment.Left
+cfgNameBox.LayoutOrder=2; cfgNameBox.ZIndex=23; cfgNameBox.Parent=cfgBody
+addCorner(cfgNameBox,7); addStroke(cfgNameBox,1,Color3.fromRGB(28,28,44))
+addPadding(cfgNameBox,8)
+
+local saveConfigBtn=newButton(cfgBody,{
+    BackgroundColor3=Color3.fromRGB(12,30,18),
+    Size=UDim2.new(1,0,0,32), ZIndex=23,
+    Font=Enum.Font.GothamBold, TextSize=11,
+    TextColor3=Color3.fromRGB(68,170,102), Text="Save Current Config",
+})
+saveConfigBtn.LayoutOrder=3
+addCorner(saveConfigBtn,7); addStroke(saveConfigBtn,1.5,Color3.fromRGB(26,64,38))
+
+sectionLabel(cfgBody,"SAVED CONFIGS",4)
+
+-- Config list scroll
+local cfgListScroll=Instance.new("ScrollingFrame")
+cfgListScroll.BackgroundTransparency=1; cfgListScroll.BorderSizePixel=0
+cfgListScroll.Size=UDim2.new(1,0,0,220)
+cfgListScroll.CanvasSize=UDim2.new(0,0,0,0)
+cfgListScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
+cfgListScroll.ScrollBarThickness=3
+cfgListScroll.ScrollBarImageColor3=Color3.fromRGB(40,40,56)
+cfgListScroll.LayoutOrder=5; cfgListScroll.ZIndex=23; cfgListScroll.Parent=cfgBody
+addListLayout(cfgListScroll,4)
+
+-- Autoload toggle row
+sectionLabel(cfgBody,"OPTIONS",6)
+local _autoloadRow, getAutoload, setAutoload = makeToggleRow(cfgBody,"Autoload last config on join",false,7)
+
+-- ── CONFIG DATA ──────────────────────────────────────────────
+-- Configs stored as: { [name] = { conditions=..., settings=..., autoload=name } }
+local savedConfigs = {}   -- { {name=string, conditions=table, settings=table} }
+local autoloadName = nil  -- name of config to autoload
+
+-- Attempt to load from a StringValue in PlayerData (persists if server saves it)
+local cfgStore = LocalPlayer:WaitForChild("PlayerData"):FindFirstChild("HUDConfigs")
+if not cfgStore then
+    cfgStore = Instance.new("StringValue")
+    cfgStore.Name = "HUDConfigs"
+    cfgStore.Parent = LocalPlayer:WaitForChild("PlayerData")
+end
+
+local function serializeConfig()
+    local conds = {}
+    for _, c in ipairs(Conditions) do
+        table.insert(conds, {
+            stands = c.stands,
+            minStr = c.minStr, minSpd = c.minSpd, minSpc = c.minSpc,
+            skins  = c.skins,  traits = c.traits,
+        })
+    end
+    return {
+        conditions    = conds,
+        globalStop    = Settings.globalStop,
+        autorollDelay = Settings.autorollDelay,
+        webhookURL    = Settings.webhookURL,
+    }
+end
+
+local function applyConfig(cfg)
+    -- Restore conditions
+    Conditions = {}
+    for _, c in ipairs(cfg.conditions or {}) do
+        table.insert(Conditions, {
+            stands = c.stands or {},
+            minStr = c.minStr or "A",
+            minSpd = c.minSpd or "A",
+            minSpc = c.minSpc or "A",
+            skins  = c.skins  or {},
+            traits = c.traits or {},
+        })
+    end
+    -- Restore settings
+    if cfg.globalStop    ~= nil then Settings.globalStop    = cfg.globalStop    end
+    if cfg.autorollDelay ~= nil then Settings.autorollDelay = cfg.autorollDelay end
+    if cfg.webhookURL    ~= nil then Settings.webhookURL    = cfg.webhookURL
+        cfgNameBox.Text = cfg.webhookURL  -- update URL box if open
+    end
+    renderConditions()
+end
+
+local function persistConfigs()
+    -- Save all configs + autoload name to the StringValue
+    local t = { configs = {}, autoload = autoloadName }
+    for _, cfg in ipairs(savedConfigs) do
+        table.insert(t.configs, cfg)
+    end
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, t)
+    if ok then cfgStore.Value = encoded end
+end
+
+local function renderConfigList()
+    cfgListScroll:ClearAllChildren()
+    addListLayout(cfgListScroll,4)
+
+    if #savedConfigs == 0 then
+        local empty=newLabel(cfgListScroll,{
+            Size=UDim2.new(1,0,0,32),
+            Font=Enum.Font.Gotham, TextSize=11,
+            TextColor3=C.textFaint, Text="No saved configs yet.",
+        })
+        empty.LayoutOrder=1
+        return
+    end
+
+    for idx, cfg in ipairs(savedConfigs) do
+        local isAuto = autoloadName == cfg.name
+        local row=newFrame(cfgListScroll,{
+            BackgroundColor3=Color3.fromRGB(19,19,28),
+            Size=UDim2.new(1,0,0,42), ZIndex=24,
+        })
+        addCorner(row,7)
+        addStroke(row,1, isAuto and Color3.fromRGB(40,100,60) or Color3.fromRGB(26,26,40))
+        row.LayoutOrder=idx
+
+        -- autoload indicator dot
+        local dot=newFrame(row,{
+            BackgroundColor3=isAuto and C.green or Color3.fromRGB(36,36,56),
+            Position=UDim2.new(0,8,0.5,-4),
+            Size=UDim2.new(0,8,0,8), ZIndex=25,
+        })
+        addCorner(dot,100)
+
+        -- name
+        newLabel(row,{
+            Position=UDim2.new(0,22,0,4), Size=UDim2.new(1,-90,0,18),
+            Font=Enum.Font.GothamBold, TextSize=12,
+            TextColor3=isAuto and Color3.fromRGB(68,200,102) or C.white,
+            Text=cfg.name, ZIndex=25,
+        })
+        -- condition count
+        newLabel(row,{
+            Position=UDim2.new(0,22,0,22), Size=UDim2.new(1,-90,0,14),
+            Font=Enum.Font.Gotham, TextSize=9,
+            TextColor3=C.textFaint,
+            Text=#cfg.conditions.." condition"..(#cfg.conditions~=1 and "s" or ""), ZIndex=25,
+        })
+
+        -- Load button
+        local loadBtn=newButton(row,{
+            AnchorPoint=Vector2.new(1,0.5),
+            Position=UDim2.new(1,-36,0.5,0),
+            Size=UDim2.new(0,28,0,26),
+            BackgroundColor3=Color3.fromRGB(20,30,50),
+            Font=Enum.Font.GothamBold, TextSize=9,
+            TextColor3=Color3.fromRGB(85,153,238), Text="â", ZIndex=26,
+        })
+        addCorner(loadBtn,6); addStroke(loadBtn,1,Color3.fromRGB(34,56,90))
+        local ci=idx
+        loadBtn.MouseButton1Click:Connect(function()
+            applyConfig(savedConfigs[ci].data)
+        end)
+
+        -- Auto toggle button
+        local autoBtn2=newButton(row,{
+            AnchorPoint=Vector2.new(1,0.5),
+            Position=UDim2.new(1,-68,0.5,0),
+            Size=UDim2.new(0,28,0,26),
+            BackgroundColor3=isAuto and Color3.fromRGB(12,34,20) or Color3.fromRGB(20,20,32),
+            Font=Enum.Font.GothamBold, TextSize=9,
+            TextColor3=isAuto and C.green or C.textMuted, Text="â", ZIndex=26,
+        })
+        addCorner(autoBtn2,6)
+        addStroke(autoBtn2,1, isAuto and Color3.fromRGB(26,74,40) or Color3.fromRGB(30,30,48))
+        autoBtn2.MouseButton1Click:Connect(function()
+            autoloadName = isAuto and nil or savedConfigs[ci].name
+            persistConfigs()
+            renderConfigList()
+        end)
+
+        -- Delete button
+        local delBtn2=newButton(row,{
+            AnchorPoint=Vector2.new(1,0.5),
+            Position=UDim2.new(1,-6,0.5,0),
+            Size=UDim2.new(0,26,0,26),
+            BackgroundTransparency=1,
+            Font=Enum.Font.GothamBold, TextSize=11,
+            TextColor3=Color3.fromRGB(80,30,30), Text="â", ZIndex=26,
+        })
+        delBtn2.MouseButton1Click:Connect(function()
+            if autoloadName==savedConfigs[ci].name then autoloadName=nil end
+            table.remove(savedConfigs, ci)
+            persistConfigs()
+            renderConfigList()
+        end)
+    end
+end
+
+saveConfigBtn.MouseButton1Click:Connect(function()
+    local name = cfgNameBox.Text
+    if name=="" then name="Config "..(#savedConfigs+1) end
+    -- overwrite if same name exists
+    for i, cfg in ipairs(savedConfigs) do
+        if cfg.name==name then
+            savedConfigs[i].data=serializeConfig()
+            persistConfigs(); renderConfigList(); return
+        end
+    end
+    table.insert(savedConfigs,{name=name, data=serializeConfig(), conditions=Conditions})
+    persistConfigs(); renderConfigList()
+end)
+
+-- Load persisted configs from StringValue on start
+do
+    local raw = cfgStore.Value
+    if raw and raw~="" then
+        local ok, t = pcall(HttpService.JSONDecode, HttpService, raw)
+        if ok and type(t)=="table" then
+            for _, cfg in ipairs(t.configs or {}) do
+                table.insert(savedConfigs, cfg)
+            end
+            autoloadName = t.autoload
+            -- Autoload on join
+            if autoloadName then
+                for _, cfg in ipairs(savedConfigs) do
+                    if cfg.name==autoloadName then
+                        applyConfig(cfg.data)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
+renderConfigList()
 
 -- ═══════════════════════════════════════════════════════════
 --  CONDITIONS LIST  (renders into condListContainer)
@@ -1370,6 +1635,7 @@ end
 
 settingsTabBtn.MouseButton1Click:Connect(function() toggleSubWin(settingsWin,settingsTabBtn) end)
 webhookTabBtn.MouseButton1Click:Connect(function()  toggleSubWin(webhookWin, webhookTabBtn)  end)
+configTabBtn.MouseButton1Click:Connect(function()   toggleSubWin(configWin,  configTabBtn)   end)
 settingsCloseBtn.MouseButton1Click:Connect(function()
     settingsWin.Visible=false
     settingsTabBtn.BackgroundTransparency=1
@@ -1379,6 +1645,11 @@ webhookCloseBtn.MouseButton1Click:Connect(function()
     webhookWin.Visible=false
     webhookTabBtn.BackgroundTransparency=1
     webhookTabBtn.TextColor3=Color3.fromRGB(56,56,80)
+end)
+configCloseBtn.MouseButton1Click:Connect(function()
+    configWin.Visible=false
+    configTabBtn.BackgroundTransparency=1
+    configTabBtn.TextColor3=Color3.fromRGB(56,56,80)
 end)
 
 autoBtn.MouseButton1Click:Connect(toggleAutoroll)
@@ -1455,6 +1726,7 @@ table.insert(connections, StandValue.Changed:Connect(updateHUD))
 -- Ensure all sub-windows are hidden on launch
 settingsWin.Visible = false
 webhookWin.Visible  = false
+configWin.Visible   = false
 wizWin.Visible      = false
 
 updateHUD()
@@ -1475,7 +1747,7 @@ end))
 local GRADE_GLOW={S={200,160,40},A={51,102,170},B={42,122,68},C={54,54,80},D={30,30,42}}
 local gR,gG,gB   = 30,30,42
 local tR,tG,tB   = 30,30,42
-local allStrokes  = {cardStroke,stripStroke,settingsStroke,webhookStroke,wizStroke}
+local allStrokes  = {cardStroke,stripStroke,settingsStroke,webhookStroke,wizStroke,configStroke}
 
 table.insert(connections, RunService.RenderStepped:Connect(function()
     if not alive then return end
