@@ -393,14 +393,15 @@ local function makeDraggable(handle, target)
             dragging=false
         end
     end)
-    UserInputService.InputChanged:Connect(function(inp)
+    -- Track in connections so killScript disconnects it properly
+    table.insert(connections, UserInputService.InputChanged:Connect(function(inp)
         if not dragging then return end
         if inp.UserInputType~=Enum.UserInputType.MouseMovement
         and inp.UserInputType~=Enum.UserInputType.Touch then return end
         local d=inp.Position-startMouse
         target.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X,
                                    startPos.Y.Scale, startPos.Y.Offset+d.Y)
-    end)
+    end))
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -1485,7 +1486,8 @@ table.insert(connections, RunService.RenderStepped:Connect(function()
         gR=lerpN(gR,tR,0.055); gG=lerpN(gG,tG,0.055); gB=lerpN(gB,tB,0.055)
         local c=Color3.fromRGB(math.round(gR),math.round(gG),math.round(gB))
         for _,s in ipairs(allStrokes) do s.Color=c end
-        for i=1,3 do statObjects[i].gradeLbl.TextColor3=gc(lastGrades[({[1]="str",[2]="spd",[3]="spc"})[i]]) end
+        local gradeKeys={"str","spd","spc"}
+        for i=1,3 do statObjects[i].gradeLbl.TextColor3=gc(lastGrades[gradeKeys[i]]) end
         if skinPill.Visible then
             skinPillStroke.Color=Color3.fromRGB(200,134,10)
             skinPill.BackgroundColor3=Color3.fromRGB(42,28,4)
