@@ -1346,8 +1346,10 @@ renderConditions = function()
         end
 
         if #(cond.traits or {})>0 then
-            makeTag(table.concat(cond.traits,", "),
-                Color3.fromRGB(8,24,32), Color3.fromRGB(34,136,170), 3)
+            local tDisplay = #cond.traits<=2
+                and table.concat(cond.traits,", ")
+                or (#cond.traits.." traits")
+            makeTag(tDisplay, Color3.fromRGB(8,24,32), Color3.fromRGB(34,136,170), 3)
         end
 
         local delBtn=newButton(item,{
@@ -1768,10 +1770,11 @@ local function setWizStep(s)
         local traitTip = newLabel(ScreenGui, {
             BackgroundColor3=Color3.fromRGB(14,14,24),
             Position=UDim2.new(0,0,0,0),
-            Size=UDim2.new(0,220,0,36),
+            Size=UDim2.new(0,0,0,26),
+            AutomaticSize=Enum.AutomaticSize.X,
             Visible=false, ZIndex=500,
             Font=Enum.Font.Gotham, TextSize=10,
-            TextColor3=Color3.fromRGB(180,180,200), TextWrapped=true,
+            TextColor3=Color3.fromRGB(180,180,200), TextWrapped=false,
             Text="",
         })
         addCorner(traitTip,6)
@@ -1808,25 +1811,41 @@ local function setWizStep(s)
                 local sel=table.find(wData.traits,tv)~=nil
                 local gc=group.color
                 local chip=newButton(chipGrid,{
-                    BackgroundColor3=sel and Color3.new(gc.R*0.08,gc.G*0.08,gc.B*0.08) or Color3.fromRGB(17,17,24),
+                    BackgroundColor3=sel and Color3.new(gc.R*0.08,gc.G*0.08,gc.B*0.08) or Color3.fromRGB(20,20,32),
                     Size=UDim2.new(0,1,0,1),
                     Font=Enum.Font.GothamBold, TextSize=11,
-                    TextColor3=sel and Color3.fromRGB(235,235,235) or Color3.fromRGB(52,52,68),
+                    TextColor3=sel and Color3.fromRGB(235,235,235) or C.textDim,
                     Text=tv, ZIndex=24,
                 })
                 chip.LayoutOrder=ci
                 addCorner(chip,8)
-                addStroke(chip,sel and 2 or 1, sel and gc or Color3.fromRGB(28,28,38))
+                addStroke(chip,sel and 2 or 1, sel and gc or Color3.fromRGB(30,30,48))
                 chip.MouseButton1Click:Connect(function()
                     local idx=table.find(wData.traits,tv)
                     if idx then table.remove(wData.traits,idx)
                     else table.insert(wData.traits,tv) end
                     setWizStep(2)
                 end)
-                chip.MouseMoved:Connect(function(x,y)
-                    traitTip.Text=tv..": "..eff
-                    traitTip.Position=UDim2.new(0,x+14,0,y+14)
+                chip.MouseEnter:Connect(function(x,y)
+                    traitTip.Text=eff
+                    local tipW = traitTip.AbsoluteSize.X > 0 and traitTip.AbsoluteSize.X or 220
+                    local screenW = workspace.CurrentCamera.ViewportSize.X
+                    local hudX = hudHolder.AbsolutePosition.X + hudHolder.AbsoluteSize.X * 0.5
+                    local onRight = hudX > screenW * 0.5
+                    local px = onRight and (x - tipW - 6) or (x + 14)
+                    traitTip.Position=UDim2.new(0,px,0,y+14)
                     traitTip.Visible=true
+                end)
+                chip.MouseMoved:Connect(function(x,y)
+                    local tipW = traitTip.AbsoluteSize.X > 0 and traitTip.AbsoluteSize.X or 220
+                    local screenW = workspace.CurrentCamera.ViewportSize.X
+                    local hudX = hudHolder.AbsolutePosition.X + hudHolder.AbsoluteSize.X * 0.5
+                    local onRight = hudX > screenW * 0.5
+                    local px = onRight and (x - tipW - 6) or (x + 14)
+                    traitTip.Position=UDim2.new(0,px,0,y+14)
+                end)
+                chip.MouseButton1Click:Connect(function()
+                    traitTip.Visible=false
                 end)
                 chip.MouseLeave:Connect(function()
                     traitTip.Visible=false
@@ -1857,6 +1876,7 @@ wizNextBtn.MouseButton1Click:Connect(function()
         })
         renderConditions()
         wizWin.Visible=false
+        settingsWin.Visible=true
     end
 end)
 wizBackBtn.MouseButton1Click:Connect(function()
@@ -1869,10 +1889,12 @@ wizSkipBtn.MouseButton1Click:Connect(function()
 end)
 wizCloseBtn.MouseButton1Click:Connect(function()
     wizWin.Visible=false
+    settingsWin.Visible=true
 end)
 
 addCondBtn.MouseButton1Click:Connect(function()
     wData={stands={},minStr="A",minSpd="A",minSpc="A",skins={},traits={}}
+    settingsWin.Visible=false
     setWizStep(0)
     task.defer(function()
         local vp = workspace.CurrentCamera.ViewportSize
