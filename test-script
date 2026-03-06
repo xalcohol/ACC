@@ -408,7 +408,7 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  MAIN HUD
 -- ═══════════════════════════════════════════════════════════
-local PAD=18; local CARD_W=320; local STRIP_W=42
+local PAD=18; local CARD_W=320; local STRIP_W=0
 
 local hudHolder=newFrame(ScreenGui,{
     Name="HUDHolder", BackgroundTransparency=1,
@@ -513,81 +513,51 @@ newFrame(cardFrame,{
 })
 yOff+=12
 
+-- Bottom row: [AUTO OFF] [⚙] [◉] [📁]  →→→  [✕]  |  status right-aligned
 local autoBtn=newButton(cardFrame,{
-    Position=UDim2.new(0,PAD,0,yOff), Size=UDim2.new(0,110,0,30),
+    Position=UDim2.new(0,PAD,0,yOff), Size=UDim2.new(0,106,0,30),
     BackgroundColor3=C.btnBg, Font=Enum.Font.GothamBold,
     TextSize=11, TextColor3=C.textDim, Text="AUTO  OFF", ZIndex=13,
 })
 addCorner(autoBtn,8)
 local autoBtnStroke=addStroke(autoBtn,1.5,C.btnBorder)
 
+-- Inline icon tab buttons: ⚙ ◉ 📁
+local function makeInlineTabBtn(icon, xPos)
+    local b=newButton(cardFrame,{
+        Position=UDim2.new(0,xPos,0,yOff), Size=UDim2.new(0,30,0,30),
+        BackgroundColor3=C.btnBg,
+        Font=Enum.Font.Gotham, TextSize=14,
+        TextColor3=C.textDim, Text=icon, ZIndex=13,
+    })
+    addCorner(b,8); addStroke(b,1.5,C.btnBorder); return b
+end
+
+local settingsTabBtn = makeInlineTabBtn("â", PAD+112)
+local webhookTabBtn  = makeInlineTabBtn("â", PAD+148)
+local configTabBtn   = makeInlineTabBtn("ð", PAD+184)
+
+-- Kill button anchored to far right
 local killBtn=newButton(cardFrame,{
-    Position=UDim2.new(0,PAD+116,0,yOff), Size=UDim2.new(0,30,0,30),
+    AnchorPoint=Vector2.new(1,0),
+    Position=UDim2.new(1,-PAD,0,yOff), Size=UDim2.new(0,30,0,30),
     BackgroundColor3=C.redDark, Font=Enum.Font.GothamBold,
-    TextSize=13, TextColor3=Color3.fromRGB(90,32,32), Text="\xe2\x9c\x95", ZIndex=13,
+    TextSize=13, TextColor3=Color3.fromRGB(90,32,32), Text="â", ZIndex=13,
 })
-addCorner(killBtn,8)
-addStroke(killBtn,1.5,C.redBorder)
+addCorner(killBtn,8); addStroke(killBtn,1.5,C.redBorder)
 
 local statusLabel=newLabel(cardFrame,{
     AnchorPoint=Vector2.new(1,0),
-    Position=UDim2.new(1,-PAD,0,yOff+3), Size=UDim2.new(0,110,0,14),
+    Position=UDim2.new(1,-PAD-36,0,yOff+3), Size=UDim2.new(0,60,0,14),
     Font=Enum.Font.GothamSemibold, TextSize=11,
     TextColor3=C.textFaint, TextXAlignment=Enum.TextXAlignment.Right,
     Text="IDLE", ZIndex=13,
 })
-newLabel(cardFrame,{
-    AnchorPoint=Vector2.new(1,0),
-    Position=UDim2.new(1,-PAD,0,yOff+18), Size=UDim2.new(0,110,0,11),
-    Font=Enum.Font.Gotham, TextSize=9,
-    TextColor3=Color3.fromRGB(26,26,40), TextXAlignment=Enum.TextXAlignment.Right,
-    Text="Y  kill script", ZIndex=13,
-})
-yOff+=44
+yOff+=42
 
 local CARD_H=yOff
 cardFrame.Size=UDim2.new(0,CARD_W,0,CARD_H)
-hudHolder.Size=UDim2.new(0,CARD_W+STRIP_W,0,CARD_H)
-
--- ── TAB STRIP ────────────────────────────────────────────────
-local tabStrip=newFrame(hudHolder,{
-    Name="Strip", BackgroundColor3=C.bgStrip,
-    Position=UDim2.new(0,CARD_W,0,0),
-    Size=UDim2.new(0,STRIP_W,1,0), ZIndex=10,
-})
-addCorner(tabStrip,18)
-local stripStroke=addStroke(tabStrip,1.5,C.border)
-makeDraggable(tabStrip,hudHolder)
-
-local function makeStripBtn(icon,yPos)
-    local b=newButton(tabStrip,{
-        AnchorPoint=Vector2.new(0.5,0),
-        Position=UDim2.new(0.5,0,0,yPos),
-        Size=UDim2.new(0,30,0,30),
-        BackgroundColor3=Color3.fromRGB(0,0,0),
-        BackgroundTransparency=1,
-        Font=Enum.Font.Gotham, TextSize=15,
-        TextColor3=Color3.fromRGB(56,56,80),
-        Text=icon, ZIndex=12,
-    })
-    addCorner(b,7); return b
-end
-
-local settingsTabBtn = makeStripBtn("\xe2\x9a\x99",10)
-local webhookTabBtn  = makeStripBtn("\xe2\x97\x89",46)
-
-local configTabBtn  = makeStripBtn("ð",82)  -- 📁
-
-local stripKillBtn=newButton(tabStrip,{
-    AnchorPoint=Vector2.new(0.5,1),
-    Position=UDim2.new(0.5,0,1,-10),
-    Size=UDim2.new(0,30,0,30),
-    BackgroundColor3=Color3.fromRGB(0,0,0),
-    BackgroundTransparency=1,
-    Font=Enum.Font.GothamBold, TextSize=13,
-    TextColor3=Color3.fromRGB(90,32,32), Text="\xe2\x9c\x95", ZIndex=12,
-})
-addCorner(stripKillBtn,7)
+hudHolder.Size=UDim2.new(0,CARD_W,0,CARD_H)
 
 -- ═══════════════════════════════════════════════════════════
 --  HELPER: make a sub-window frame with title bar
@@ -1631,8 +1601,11 @@ local subWinList = {}  -- filled after windows are created
 local function closeAllSubWins()
     for _, entry in ipairs(subWinList) do
         entry.win.Visible = false
-        entry.btn.BackgroundTransparency = 1
-        entry.btn.TextColor3 = Color3.fromRGB(56,56,80)
+        entry.btn.BackgroundColor3 = C.btnBg
+        entry.btn.TextColor3 = C.textDim
+        -- reset stroke via UIStroke child
+        local s = entry.btn:FindFirstChildOfClass("UIStroke")
+        if s then s.Color = C.btnBorder end
     end
 end
 
@@ -1641,8 +1614,10 @@ local function toggleSubWin(win, btn)
     closeAllSubWins()
     if not wasOpen then
         openSubWin(win)
-        btn.BackgroundTransparency = 0.92
+        btn.BackgroundColor3 = Color3.fromRGB(22,22,42)
         btn.TextColor3 = C.white
+        local s = btn:FindFirstChildOfClass("UIStroke")
+        if s then s.Color = Color3.fromRGB(85,85,170) end
     end
 end
 
@@ -1662,7 +1637,6 @@ configCloseBtn.MouseButton1Click:Connect(function()   closeAllSubWins() end)
 
 autoBtn.MouseButton1Click:Connect(toggleAutoroll)
 killBtn.MouseButton1Click:Connect(killScript)
-stripKillBtn.MouseButton1Click:Connect(killScript)
 
 -- ═══════════════════════════════════════════════════════════
 --  FLASH OVERLAY
@@ -1755,7 +1729,7 @@ end))
 local GRADE_GLOW={S={200,160,40},A={51,102,170},B={42,122,68},C={54,54,80},D={30,30,42}}
 local gR,gG,gB   = 30,30,42
 local tR,tG,tB   = 30,30,42
-local allStrokes  = {cardStroke,stripStroke,settingsStroke,webhookStroke,wizStroke,configStroke}
+local allStrokes  = {cardStroke,settingsStroke,webhookStroke,wizStroke,configStroke}
 
 table.insert(connections, RunService.RenderStepped:Connect(function()
     if not alive then return end
