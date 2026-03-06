@@ -867,11 +867,15 @@ end))
 -- ═══════════════════════════════════════════════════════════
 local configWin, configStroke, configCloseBtn = makeSubWin("Configs",300,420)
 
-local cfgBody=newFrame(configWin,{
-    BackgroundTransparency=1,
-    Position=UDim2.new(0,0,0,37),
-    Size=UDim2.new(1,0,1,-37), ZIndex=21,
-})
+local cfgBody=Instance.new("ScrollingFrame")
+cfgBody.BackgroundTransparency=1; cfgBody.BorderSizePixel=0
+cfgBody.Position=UDim2.new(0,0,0,37)
+cfgBody.Size=UDim2.new(1,0,1,-37)
+cfgBody.CanvasSize=UDim2.new(0,0,0,0)
+cfgBody.AutomaticCanvasSize=Enum.AutomaticSize.Y
+cfgBody.ScrollBarThickness=3
+cfgBody.ScrollBarImageColor3=Color3.fromRGB(40,40,56)
+cfgBody.ZIndex=21; cfgBody.Parent=configWin
 do
     local p=Instance.new("UIPadding")
     p.PaddingLeft=UDim.new(0,12); p.PaddingRight=UDim.new(0,12)
@@ -911,7 +915,7 @@ sectionLabel(cfgBody,"SAVED CONFIGS",4)
 -- Config list scroll
 local cfgListScroll=Instance.new("ScrollingFrame")
 cfgListScroll.BackgroundTransparency=1; cfgListScroll.BorderSizePixel=0
-cfgListScroll.Size=UDim2.new(1,0,0,220)
+cfgListScroll.Size=UDim2.new(1,0,0,180)
 cfgListScroll.CanvasSize=UDim2.new(0,0,0,0)
 cfgListScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
 cfgListScroll.ScrollBarThickness=3
@@ -1621,36 +1625,40 @@ local function openSubWin(win)
     end)
 end
 
-local function toggleSubWin(win,btn)
-    if win.Visible then
-        win.Visible=false
-        btn.BackgroundTransparency=1
-        btn.TextColor3=Color3.fromRGB(56,56,80)
-    else
-        openSubWin(win)
-        btn.BackgroundTransparency=0.92
-        btn.TextColor3=C.white
+-- All sub-windows and their tab buttons, for mutual exclusion
+local subWinList = {}  -- filled after windows are created
+
+local function closeAllSubWins()
+    for _, entry in ipairs(subWinList) do
+        entry.win.Visible = false
+        entry.btn.BackgroundTransparency = 1
+        entry.btn.TextColor3 = Color3.fromRGB(56,56,80)
     end
 end
+
+local function toggleSubWin(win, btn)
+    local wasOpen = win.Visible
+    closeAllSubWins()
+    if not wasOpen then
+        openSubWin(win)
+        btn.BackgroundTransparency = 0.92
+        btn.TextColor3 = C.white
+    end
+end
+
+-- Register sub-windows for mutual exclusion
+subWinList = {
+    {win=settingsWin, btn=settingsTabBtn},
+    {win=webhookWin,  btn=webhookTabBtn},
+    {win=configWin,   btn=configTabBtn},
+}
 
 settingsTabBtn.MouseButton1Click:Connect(function() toggleSubWin(settingsWin,settingsTabBtn) end)
 webhookTabBtn.MouseButton1Click:Connect(function()  toggleSubWin(webhookWin, webhookTabBtn)  end)
 configTabBtn.MouseButton1Click:Connect(function()   toggleSubWin(configWin,  configTabBtn)   end)
-settingsCloseBtn.MouseButton1Click:Connect(function()
-    settingsWin.Visible=false
-    settingsTabBtn.BackgroundTransparency=1
-    settingsTabBtn.TextColor3=Color3.fromRGB(56,56,80)
-end)
-webhookCloseBtn.MouseButton1Click:Connect(function()
-    webhookWin.Visible=false
-    webhookTabBtn.BackgroundTransparency=1
-    webhookTabBtn.TextColor3=Color3.fromRGB(56,56,80)
-end)
-configCloseBtn.MouseButton1Click:Connect(function()
-    configWin.Visible=false
-    configTabBtn.BackgroundTransparency=1
-    configTabBtn.TextColor3=Color3.fromRGB(56,56,80)
-end)
+settingsCloseBtn.MouseButton1Click:Connect(function() closeAllSubWins() end)
+webhookCloseBtn.MouseButton1Click:Connect(function()  closeAllSubWins() end)
+configCloseBtn.MouseButton1Click:Connect(function()   closeAllSubWins() end)
 
 autoBtn.MouseButton1Click:Connect(toggleAutoroll)
 killBtn.MouseButton1Click:Connect(killScript)
