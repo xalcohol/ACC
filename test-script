@@ -1,32 +1,46 @@
--- Chest Auto-Destroyer
--- Auto-starts on launch, toggle to pause
+-- TeleportLoop LocalScript
+-- Toggle with K or the on-screen button
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local TOGGLE_KEY = Enum.KeyCode.K
 
--- Config
-local INTERVAL = 0.1
-local running = true
+-- Location 1 (start/return point)
+local CFrame1 = CFrame.new(
+	57.7528305, 0.578745723, 1820.71851,
+	0.307113975, -4.71410182e-08, 0.951672733,
+	-1.7533468e-08, 1, 5.5193123e-08,
+	-0.951672733, -3.36367023e-08, 0.307113975
+)
+
+-- Location 2 (destination after pressing C)
+local CFrame2 = CFrame.new(
+	-1880.58508, 8.5140295, -739.799622,
+	0.986630619, -4.39580568e-08, -0.16297254,
+	4.29249845e-08, 1, -9.86027615e-09,
+	0.16297254, 2.73285661e-09, 0.986630619
+)
+
+local looping = false
 local loopThread = nil
+local player = Players.LocalPlayer
 
--- ╔══════════════════════════════╗
--- ║         GUI SETUP            ║
--- ╚══════════════════════════════╝
+-- ─── GUI ────────────────────────────────────────────────────────────────────
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ChestDestroyer"
+screenGui.Name = "TeleportLoopGui"
 screenGui.ResetOnSpawn = false
-screenGui.ScreenInsets = Enum.ScreenInsets.None
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent = PlayerGui
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
+-- Draggable container
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 250, 0, 80)
-frame.Position = UDim2.new(1, -275, 0, 16)
-frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 200, 0, 80)
+frame.Position = UDim2.new(0, 20, 0.5, -40)
+frame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
@@ -36,53 +50,43 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = frame
 
--- Title
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(60, 60, 75)
+stroke.Thickness = 1.2
+stroke.Parent = frame
+
+-- Title bar
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -10, 0, 30)
-title.Position = UDim2.new(0, 10, 0, 8)
+title.Size = UDim2.new(1, 0, 0, 26)
+title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "📦 Chest Destroyer"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 15
+title.Text = "TP LOOP"
+title.TextColor3 = Color3.fromRGB(160, 155, 200)
+title.TextSize = 11
 title.Font = Enum.Font.GothamBold
-title.TextXAlignment = Enum.TextXAlignment.Left
+title.LetterSpacing = 4
 title.Parent = frame
 
 -- Status label
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0, 130, 0, 20)
-statusLabel.Position = UDim2.new(0, 10, 0, 38)
+statusLabel.Size = UDim2.new(1, -16, 0, 16)
+statusLabel.Position = UDim2.new(0, 8, 0, 26)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: Running"
-statusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
-statusLabel.TextSize = 12
+statusLabel.Text = "● IDLE"
+statusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+statusLabel.TextSize = 11
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = frame
 
--- Kill Button (trash icon)
-local killButton = Instance.new("TextButton")
-killButton.Size = UDim2.new(0, 26, 0, 22)
-killButton.Position = UDim2.new(1, -38, 0, 38)
-killButton.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-killButton.BorderSizePixel = 0
-killButton.Text = "🗑️"
-killButton.TextSize = 14
-killButton.Font = Enum.Font.GothamBold
-killButton.Parent = frame
-
-local killCorner = Instance.new("UICorner")
-killCorner.CornerRadius = UDim.new(0, 6)
-killCorner.Parent = killButton
-
--- Toggle Button
+-- Toggle button
 local button = Instance.new("TextButton")
-button.Size = UDim2.new(0, 70, 0, 22)
-button.Position = UDim2.new(1, -112, 0, 38)
-button.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+button.Size = UDim2.new(1, -16, 0, 26)
+button.Position = UDim2.new(0, 8, 0, 46)
+button.BackgroundColor3 = Color3.fromRGB(55, 50, 90)
 button.BorderSizePixel = 0
-button.Text = "STOP"
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Text = "START  [K]"
+button.TextColor3 = Color3.fromRGB(200, 195, 255)
 button.TextSize = 12
 button.Font = Enum.Font.GothamBold
 button.Parent = frame
@@ -91,89 +95,135 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = button
 
--- ╔══════════════════════════════╗
--- ║         CORE LOGIC           ║
--- ╚══════════════════════════════╝
+local btnStroke = Instance.new("UIStroke")
+btnStroke.Color = Color3.fromRGB(90, 80, 160)
+btnStroke.Thickness = 1
+btnStroke.Parent = button
 
-local function getChestCount(chestName)
-	local ok, result = pcall(function()
-		local numberLabel = PlayerGui
-			:WaitForChild("Inventory")
-			:WaitForChild("CanvasGroup")
-			:WaitForChild("backpack_frame")
-			:WaitForChild("enlarging_frame")
-			:WaitForChild("holder")
-			:WaitForChild(chestName)
-			:WaitForChild("Holder")
-			:WaitForChild("Holder")
-			:WaitForChild("Number")
-		return numberLabel.Text
-	end)
-	if not ok then return nil end
-	return tonumber(tostring(result):match("(%d+)x?"))
-end
+-- Pulsing status dot
+local dot = Instance.new("Frame")
+dot.Size = UDim2.new(0, 7, 0, 7)
+dot.Position = UDim2.new(0, 8, 0, 30)
+dot.BackgroundColor3 = Color3.fromRGB(120, 120, 140)
+dot.BorderSizePixel = 0
+dot.Parent = frame
 
-local function fireDestroy(name, amount)
-	local args = {
-		{
-			Name = name,
-			Amount = amount
-		}
-	}
-	ReplicatedStorage
-		:WaitForChild("requests")
-		:WaitForChild("general")
-		:WaitForChild("DestroyItem")
-		:FireServer(unpack(args))
-end
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = dot
 
-local function setRunning(state)
-	running = state
+local pulseTween = TweenService:Create(dot,
+	TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+	{ BackgroundColor3 = Color3.fromRGB(80, 220, 130) }
+)
 
-	if running then
-		button.Text = "STOP"
-		button.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-		statusLabel.Text = "Status: Running"
-		statusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
-
-		loopThread = task.spawn(function()
-			while running do
-				local common = getChestCount("Common Chest")
-				if common and common > 0 then
-					fireDestroy("Common Chest", common)
-				end
-
-				local rare = getChestCount("Rare Chest")
-				if rare and rare > 0 then
-					fireDestroy("Rare Chest", rare)
-				end
-
-				task.wait(INTERVAL)
-			end
-		end)
+local function setGuiActive(active)
+	if active then
+		statusLabel.Text = "● RUNNING"
+		statusLabel.TextColor3 = Color3.fromRGB(80, 220, 130)
+		button.Text = "STOP  [K]"
+		button.BackgroundColor3 = Color3.fromRGB(80, 30, 40)
+		button.TextColor3 = Color3.fromRGB(255, 160, 160)
+		btnStroke.Color = Color3.fromRGB(180, 60, 70)
+		dot.BackgroundColor3 = Color3.fromRGB(80, 220, 130)
+		pulseTween:Play()
 	else
-		button.Text = "START"
-		button.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
-		statusLabel.Text = "Status: Idle"
-		statusLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-
-		if loopThread then
-			task.cancel(loopThread)
-			loopThread = nil
-		end
+		statusLabel.Text = "● IDLE"
+		statusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+		button.Text = "START  [K]"
+		button.BackgroundColor3 = Color3.fromRGB(55, 50, 90)
+		button.TextColor3 = Color3.fromRGB(200, 195, 255)
+		btnStroke.Color = Color3.fromRGB(90, 80, 160)
+		dot.BackgroundColor3 = Color3.fromRGB(120, 120, 140)
+		pulseTween:Cancel()
 	end
 end
 
-button.MouseButton1Click:Connect(function()
-	setRunning(not running)
-end)
+-- ─── LOGIC ──────────────────────────────────────────────────────────────────
 
-killButton.MouseButton1Click:Connect(function()
+local function getCharacter()
+	return player.Character or player.CharacterAdded:Wait()
+end
+
+local function getHRP()
+	local char = getCharacter()
+	return char:WaitForChild("HumanoidRootPart")
+end
+
+local function pressC()
+	local VIM = game:GetService("VirtualInputManager")
+	VIM:SendKeyEvent(true,  Enum.KeyCode.C, false, game)
+	task.wait(0.05)
+	VIM:SendKeyEvent(false, Enum.KeyCode.C, false, game)
+end
+
+local function runLoop()
+	while looping do
+		-- Step 1: TP to Location 1
+		local hrp = getHRP()
+		hrp.CFrame = CFrame1
+
+		task.wait(0.2)
+
+		-- Step 2: Press C
+		pressC()
+
+		-- Step 3: Wait 3 seconds, TP to Location 2
+		task.wait(3)
+		if not looping then break end
+
+		hrp = getHRP()
+		hrp.CFrame = CFrame2
+
+		-- Step 4: Wait 4 seconds, loop back
+		task.wait(4)
+	end
+end
+
+local function startLoop()
+	looping = true
+	loopThread = task.spawn(runLoop)
+	setGuiActive(true)
+	print("[TeleportLoop] Started")
+end
+
+local function stopLoop()
+	looping = false
 	if loopThread then
 		task.cancel(loopThread)
+		loopThread = nil
 	end
-	screenGui:Destroy()
+	setGuiActive(false)
+	print("[TeleportLoop] Stopped")
+end
+
+local function toggle()
+	if looping then stopLoop() else startLoop() end
+end
+
+-- ─── INPUT ──────────────────────────────────────────────────────────────────
+
+button.MouseButton1Click:Connect(toggle)
+
+button.MouseEnter:Connect(function()
+	TweenService:Create(button, TweenInfo.new(0.15), {
+		BackgroundColor3 = looping
+			and Color3.fromRGB(110, 40, 50)
+			or  Color3.fromRGB(75, 68, 120)
+	}):Play()
 end)
 
--- Auto-start on launch
-setRunning(true)
+button.MouseLeave:Connect(function()
+	TweenService:Create(button, TweenInfo.new(0.15), {
+		BackgroundColor3 = looping
+			and Color3.fromRGB(80, 30, 40)
+			or  Color3.fromRGB(55, 50, 90)
+	}):Play()
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == TOGGLE_KEY then toggle() end
+end)
+
+print("[TeleportLoop] Loaded — press K or click the button to toggle")
