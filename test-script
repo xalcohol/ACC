@@ -1,13 +1,16 @@
 -- TeleportLoop LocalScript
--- Toggle with K or the on-screen button
+-- Place inside StarterPlayerScripts
+-- K = toggle loop | ' = destroy script + GUI entirely
+-- Mode C: TP loc1 → press C → wait 3s → TP loc2 → wait 4s → loop
+-- Mode J: TP loc1 → press J → wait 1s → TP loc2 → wait 20s → loop
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local TOGGLE_KEY = Enum.KeyCode.K
+local TOGGLE_KEY  = Enum.KeyCode.K
+local DESTROY_KEY = Enum.KeyCode.Quote
 
--- Location 1 (start/return point)
 local CFrame1 = CFrame.new(
 	57.7528305, 0.578745723, 1820.71851,
 	0.307113975, -4.71410182e-08, 0.951672733,
@@ -15,7 +18,6 @@ local CFrame1 = CFrame.new(
 	-0.951672733, -3.36367023e-08, 0.307113975
 )
 
--- Location 2 (destination after pressing C)
 local CFrame2 = CFrame.new(
 	-1880.58508, 8.5140295, -739.799622,
 	0.986630619, -4.39580568e-08, -0.16297254,
@@ -23,171 +25,304 @@ local CFrame2 = CFrame.new(
 	0.16297254, 2.73285661e-09, 0.986630619
 )
 
-local looping = false
+local looping    = false
 local loopThread = nil
-local player = Players.LocalPlayer
+local mode       = "C"
+local player     = Players.LocalPlayer
 
 -- ─── GUI ────────────────────────────────────────────────────────────────────
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TeleportLoopGui"
 screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.IgnoreGuiInset = true
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Draggable container
 local frame = Instance.new("Frame")
-frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 200, 0, 80)
-frame.Position = UDim2.new(0, 20, 0.5, -40)
-frame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+frame.Size = UDim2.new(0, 210, 0, 120)
+frame.Position = UDim2.new(0, 20, 0, 80)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.Parent = screenGui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = frame
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(60, 60, 75)
-stroke.Thickness = 1.2
-stroke.Parent = frame
+local frameStroke = Instance.new("UIStroke", frame)
+frameStroke.Color = Color3.fromRGB(80, 70, 130)
+frameStroke.Thickness = 1.5
 
--- Title bar
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 26)
+-- Title
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, -36, 0, 28)
 title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "TP LOOP"
-title.TextColor3 = Color3.fromRGB(160, 155, 200)
-title.TextSize = 11
-title.Font = Enum.Font.GothamBold
-title.LetterSpacing = 4
-title.Parent = frame
+title.TextColor3 = Color3.fromRGB(170, 160, 220)
+title.TextSize = 13
+title.Font = Enum.Font.GothamMedium
+title.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Trashcan button
+local trashBtn = Instance.new("TextButton", frame)
+trashBtn.Size = UDim2.new(0, 26, 0, 26)
+trashBtn.Position = UDim2.new(1, -30, 0, 1)
+trashBtn.BackgroundColor3 = Color3.fromRGB(35, 20, 22)
+trashBtn.BorderSizePixel = 0
+trashBtn.Text = ""
+trashBtn.AutoButtonColor = false
+trashBtn.ZIndex = 5
+Instance.new("UICorner", trashBtn).CornerRadius = UDim.new(0, 6)
+
+local trashStroke = Instance.new("UIStroke", trashBtn)
+trashStroke.Color = Color3.fromRGB(140, 50, 60)
+trashStroke.Thickness = 1
+
+local lid = Instance.new("Frame", trashBtn)
+lid.Size = UDim2.new(0, 14, 0, 2)
+lid.Position = UDim2.new(0.5, -7, 0, 5)
+lid.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
+lid.BorderSizePixel = 0
+Instance.new("UICorner", lid).CornerRadius = UDim.new(0, 1)
+
+local lidHandle = Instance.new("Frame", trashBtn)
+lidHandle.Size = UDim2.new(0, 6, 0, 2)
+lidHandle.Position = UDim2.new(0.5, -3, 0, 3)
+lidHandle.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
+lidHandle.BorderSizePixel = 0
+Instance.new("UICorner", lidHandle).CornerRadius = UDim.new(0, 1)
+
+local body = Instance.new("Frame", trashBtn)
+body.Size = UDim2.new(0, 12, 0, 11)
+body.Position = UDim2.new(0.5, -6, 0, 9)
+body.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
+body.BorderSizePixel = 0
+Instance.new("UICorner", body).CornerRadius = UDim.new(0, 2)
+
+for i = 0, 2 do
+	local line = Instance.new("Frame", body)
+	line.Size = UDim2.new(0, 2, 1, -4)
+	line.Position = UDim2.new(0, 2 + i * 4, 0, 2)
+	line.BackgroundColor3 = Color3.fromRGB(35, 20, 22)
+	line.BorderSizePixel = 0
+	Instance.new("UICorner", line).CornerRadius = UDim.new(0, 1)
+end
+
+local trashHint = Instance.new("TextLabel", trashBtn)
+trashHint.Size = UDim2.new(1, 0, 0, 8)
+trashHint.Position = UDim2.new(0, 0, 1, 1)
+trashHint.BackgroundTransparency = 1
+trashHint.Text = "[ ' ]"
+trashHint.TextColor3 = Color3.fromRGB(140, 50, 60)
+trashHint.TextSize = 7
+trashHint.Font = Enum.Font.Gotham
 
 -- Status label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -16, 0, 16)
-statusLabel.Position = UDim2.new(0, 8, 0, 26)
+local statusLabel = Instance.new("TextLabel", frame)
+statusLabel.Size = UDim2.new(1, -16, 0, 18)
+statusLabel.Position = UDim2.new(0, 8, 0, 28)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "● IDLE"
-statusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
-statusLabel.TextSize = 11
+statusLabel.TextColor3 = Color3.fromRGB(120, 120, 150)
+statusLabel.TextSize = 12
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = frame
+
+-- ─── MODE SELECTOR ──────────────────────────────────────────────────────────
+
+local selectorBg = Instance.new("Frame", frame)
+selectorBg.Size = UDim2.new(1, -16, 0, 26)
+selectorBg.Position = UDim2.new(0, 8, 0, 48)
+selectorBg.BackgroundColor3 = Color3.fromRGB(13, 13, 18)
+selectorBg.BorderSizePixel = 0
+Instance.new("UICorner", selectorBg).CornerRadius = UDim.new(0, 7)
+
+local selStroke = Instance.new("UIStroke", selectorBg)
+selStroke.Color = Color3.fromRGB(50, 50, 70)
+selStroke.Thickness = 1
+
+local btnC = Instance.new("TextButton", selectorBg)
+btnC.Size = UDim2.new(0.5, -2, 1, -4)
+btnC.Position = UDim2.new(0, 2, 0, 2)
+btnC.BackgroundColor3 = Color3.fromRGB(60, 50, 110)
+btnC.BorderSizePixel = 0
+btnC.Text = "Mode: C"
+btnC.TextColor3 = Color3.fromRGB(210, 200, 255)
+btnC.TextSize = 12
+btnC.Font = Enum.Font.GothamMedium
+Instance.new("UICorner", btnC).CornerRadius = UDim.new(0, 5)
+
+local btnJ = Instance.new("TextButton", selectorBg)
+btnJ.Size = UDim2.new(0.5, -2, 1, -4)
+btnJ.Position = UDim2.new(0.5, 0, 0, 2)
+btnJ.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+btnJ.BorderSizePixel = 0
+btnJ.Text = "Mode: J"
+btnJ.TextColor3 = Color3.fromRGB(100, 100, 130)
+btnJ.TextSize = 12
+btnJ.Font = Enum.Font.GothamMedium
+Instance.new("UICorner", btnJ).CornerRadius = UDim.new(0, 5)
 
 -- Toggle button
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(1, -16, 0, 26)
-button.Position = UDim2.new(0, 8, 0, 46)
-button.BackgroundColor3 = Color3.fromRGB(55, 50, 90)
+local button = Instance.new("TextButton", frame)
+button.Size = UDim2.new(1, -16, 0, 30)
+button.Position = UDim2.new(0, 8, 0, 82)
+button.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
 button.BorderSizePixel = 0
 button.Text = "START  [K]"
-button.TextColor3 = Color3.fromRGB(200, 195, 255)
-button.TextSize = 12
-button.Font = Enum.Font.GothamBold
-button.Parent = frame
+button.TextColor3 = Color3.fromRGB(210, 200, 255)
+button.TextSize = 13
+button.Font = Enum.Font.GothamMedium
+Instance.new("UICorner", button).CornerRadius = UDim.new(0, 7)
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 6)
-btnCorner.Parent = button
+local btnStroke = Instance.new("UIStroke", button)
+btnStroke.Color = Color3.fromRGB(100, 85, 180)
+btnStroke.Thickness = 1.2
 
-local btnStroke = Instance.new("UIStroke")
-btnStroke.Color = Color3.fromRGB(90, 80, 160)
-btnStroke.Thickness = 1
-btnStroke.Parent = button
+-- ─── GUI STATE ──────────────────────────────────────────────────────────────
 
--- Pulsing status dot
-local dot = Instance.new("Frame")
-dot.Size = UDim2.new(0, 7, 0, 7)
-dot.Position = UDim2.new(0, 8, 0, 30)
-dot.BackgroundColor3 = Color3.fromRGB(120, 120, 140)
-dot.BorderSizePixel = 0
-dot.Parent = frame
-
-local dotCorner = Instance.new("UICorner")
-dotCorner.CornerRadius = UDim.new(1, 0)
-dotCorner.Parent = dot
-
-local pulseTween = TweenService:Create(dot,
-	TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-	{ BackgroundColor3 = Color3.fromRGB(80, 220, 130) }
-)
+local function updateModeButtons()
+	if mode == "C" then
+		btnC.BackgroundColor3 = Color3.fromRGB(60, 50, 110)
+		btnC.TextColor3 = Color3.fromRGB(210, 200, 255)
+		btnJ.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+		btnJ.TextColor3 = Color3.fromRGB(100, 100, 130)
+	else
+		btnJ.BackgroundColor3 = Color3.fromRGB(60, 50, 110)
+		btnJ.TextColor3 = Color3.fromRGB(210, 200, 255)
+		btnC.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
+		btnC.TextColor3 = Color3.fromRGB(100, 100, 130)
+	end
+end
 
 local function setGuiActive(active)
 	if active then
-		statusLabel.Text = "● RUNNING"
+		statusLabel.Text = "● RUNNING  [" .. mode .. "]"
 		statusLabel.TextColor3 = Color3.fromRGB(80, 220, 130)
 		button.Text = "STOP  [K]"
-		button.BackgroundColor3 = Color3.fromRGB(80, 30, 40)
+		button.BackgroundColor3 = Color3.fromRGB(90, 25, 35)
 		button.TextColor3 = Color3.fromRGB(255, 160, 160)
-		btnStroke.Color = Color3.fromRGB(180, 60, 70)
-		dot.BackgroundColor3 = Color3.fromRGB(80, 220, 130)
-		pulseTween:Play()
+		btnStroke.Color = Color3.fromRGB(200, 60, 75)
+		frameStroke.Color = Color3.fromRGB(80, 200, 110)
 	else
 		statusLabel.Text = "● IDLE"
-		statusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+		statusLabel.TextColor3 = Color3.fromRGB(120, 120, 150)
 		button.Text = "START  [K]"
-		button.BackgroundColor3 = Color3.fromRGB(55, 50, 90)
-		button.TextColor3 = Color3.fromRGB(200, 195, 255)
-		btnStroke.Color = Color3.fromRGB(90, 80, 160)
-		dot.BackgroundColor3 = Color3.fromRGB(120, 120, 140)
-		pulseTween:Cancel()
+		button.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
+		button.TextColor3 = Color3.fromRGB(210, 200, 255)
+		btnStroke.Color = Color3.fromRGB(100, 85, 180)
+		frameStroke.Color = Color3.fromRGB(80, 70, 130)
 	end
+end
+
+-- ─── DESTROY ────────────────────────────────────────────────────────────────
+
+local destroyed = false
+
+local function destroyAll()
+	if destroyed then return end
+	destroyed = true
+	looping = false
+	if loopThread then
+		task.cancel(loopThread)
+		loopThread = nil
+	end
+	if screenGui and screenGui.Parent then
+		screenGui:Destroy()
+	end
+	script:Destroy()
+	print("[TeleportLoop] Destroyed")
 end
 
 -- ─── LOGIC ──────────────────────────────────────────────────────────────────
 
-local function getCharacter()
-	return player.Character or player.CharacterAdded:Wait()
-end
-
 local function getHRP()
-	local char = getCharacter()
+	local char = player.Character or player.CharacterAdded:Wait()
 	return char:WaitForChild("HumanoidRootPart")
 end
 
-local function pressC()
-	local VIM = game:GetService("VirtualInputManager")
-	VIM:SendKeyEvent(true,  Enum.KeyCode.C, false, game)
-	task.wait(0.05)
-	VIM:SendKeyEvent(false, Enum.KeyCode.C, false, game)
-end
-
-local function runLoop()
-	while looping do
-		-- Step 1: TP to Location 1
-		local hrp = getHRP()
-		hrp.CFrame = CFrame1
-
-		task.wait(0.2)
-
-		-- Step 2: Press C
-		pressC()
-
-		-- Step 3: Wait 3 seconds, TP to Location 2
-		task.wait(3)
-		if not looping then break end
-
-		hrp = getHRP()
-		hrp.CFrame = CFrame2
-
-		-- Step 4: Wait 4 seconds, loop back
-		task.wait(4)
+local function pressKey(key)
+	local ok, VIM = pcall(function()
+		return game:GetService("VirtualInputManager")
+	end)
+	if ok and VIM then
+		VIM:SendKeyEvent(true, key, false, game)
+		task.wait(0.05)
+		VIM:SendKeyEvent(false, key, false, game)
+	else
+		warn("[TeleportLoop] VirtualInputManager unavailable")
 	end
 end
 
+-- Mode C: TP loc1 → press C → 2s → TP loc2 → 5s → repeat
+local function runLoopC()
+	while looping do
+		local hrp = getHRP()
+		if not hrp then break end
+		hrp.CFrame = CFrame1
+		print("[TeleportLoop][C] Teleported to Location 1")
+
+		task.wait(0.3)
+		if not looping then break end
+
+		pressKey(Enum.KeyCode.C)
+		print("[TeleportLoop][C] Pressed C")
+
+		task.wait(2)
+		if not looping then break end
+
+		hrp = getHRP()
+		if not hrp then break end
+		hrp.CFrame = CFrame2
+		print("[TeleportLoop][C] Teleported to Location 2")
+
+		task.wait(5)
+	end
+	print("[TeleportLoop][C] Loop ended")
+end
+
+-- Mode J: TP loc1 → press J → 1s → TP loc2 → 20s → repeat
+local function runLoopJ()
+	while looping do
+		local hrp = getHRP()
+		if not hrp then break end
+		hrp.CFrame = CFrame1
+		print("[TeleportLoop][J] Teleported to Location 1")
+
+		task.wait(0.3)
+		if not looping then break end
+
+		pressKey(Enum.KeyCode.J)
+		print("[TeleportLoop][J] Pressed J")
+
+		task.wait(1)
+		if not looping then break end
+
+		hrp = getHRP()
+		if not hrp then break end
+		hrp.CFrame = CFrame2
+		print("[TeleportLoop][J] Teleported to Location 2")
+
+		task.wait(20)
+	end
+	print("[TeleportLoop][J] Loop ended")
+end
+
 local function startLoop()
+	if looping then return end
 	looping = true
-	loopThread = task.spawn(runLoop)
 	setGuiActive(true)
-	print("[TeleportLoop] Started")
+	if mode == "C" then
+		loopThread = task.spawn(runLoopC)
+	else
+		loopThread = task.spawn(runLoopJ)
+	end
+	print("[TeleportLoop] Started — Mode:", mode)
 end
 
 local function stopLoop()
+	if not looping then return end
 	looping = false
 	if loopThread then
 		task.cancel(loopThread)
@@ -201,29 +336,49 @@ local function toggle()
 	if looping then stopLoop() else startLoop() end
 end
 
--- ─── INPUT ──────────────────────────────────────────────────────────────────
+-- ─── EVENTS ─────────────────────────────────────────────────────────────────
 
-button.MouseButton1Click:Connect(toggle)
-
-button.MouseEnter:Connect(function()
-	TweenService:Create(button, TweenInfo.new(0.15), {
-		BackgroundColor3 = looping
-			and Color3.fromRGB(110, 40, 50)
-			or  Color3.fromRGB(75, 68, 120)
-	}):Play()
+btnC.MouseButton1Click:Connect(function()
+	if looping then return end
+	mode = "C"
+	updateModeButtons()
 end)
 
+btnJ.MouseButton1Click:Connect(function()
+	if looping then return end
+	mode = "J"
+	updateModeButtons()
+end)
+
+button.MouseButton1Click:Connect(toggle)
+trashBtn.MouseButton1Click:Connect(destroyAll)
+
+trashBtn.MouseEnter:Connect(function()
+	TweenService:Create(trashBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(60, 25, 28) }):Play()
+end)
+trashBtn.MouseLeave:Connect(function()
+	TweenService:Create(trashBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(35, 20, 22) }):Play()
+end)
+
+button.MouseEnter:Connect(function()
+	TweenService:Create(button, TweenInfo.new(0.1), {
+		BackgroundColor3 = looping and Color3.fromRGB(120, 35, 48) or Color3.fromRGB(80, 68, 135)
+	}):Play()
+end)
 button.MouseLeave:Connect(function()
-	TweenService:Create(button, TweenInfo.new(0.15), {
-		BackgroundColor3 = looping
-			and Color3.fromRGB(80, 30, 40)
-			or  Color3.fromRGB(55, 50, 90)
+	TweenService:Create(button, TweenInfo.new(0.1), {
+		BackgroundColor3 = looping and Color3.fromRGB(90, 25, 35) or Color3.fromRGB(60, 50, 100)
 	}):Play()
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == TOGGLE_KEY then toggle() end
+	if input.KeyCode == TOGGLE_KEY then
+		toggle()
+	elseif input.KeyCode == DESTROY_KEY then
+		destroyAll()
+	end
 end)
 
-print("[TeleportLoop] Loaded — press K or click the button to toggle")
+updateModeButtons()
+print("[TeleportLoop] Loaded — K: toggle | ': destroy | click Mode C or J to switch")
