@@ -1,491 +1,1070 @@
--- TeleportLoop LocalScript
--- Place inside StarterPlayerScripts
--- K = toggle loop | ' = destroy script + GUI entirely
--- Mode C:    TP loc1 → press C → 2s → TP loc2 → 5s  → loop
--- Mode J:    TP loc1 → press J → 1s → TP loc2 → 20s → loop
--- Mode BOTH: TP loc1 → press J → 1s → TP loc2 → 9s
---            TP loc1 → press C → 1s → TP loc2 → 9s  → loop
+-- // JJBI Auto Script
+-- // Auto Story + Auto Dungeon + Auto World Boss | Kill-scriptable
 
-local Players         = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService    = game:GetService("TweenService")
+-- [[ KILL FLAG ]] --
+local ScriptKilled = false
+local function KillScript() ScriptKilled = true end
 
-local TOGGLE_KEY  = Enum.KeyCode.K
-local DESTROY_KEY = Enum.KeyCode.Quote
+-- [[ SERVICES ]] --
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PlayerGui         = Players.LocalPlayer.PlayerGui
 
-local CFrame1 = CFrame.new(
-	57.7528305, 0.578745723, 1820.71851,
-	0.307113975, -4.71410182e-08, 0.951672733,
-	-1.7533468e-08, 1, 5.5193123e-08,
-	-0.951672733, -3.36367023e-08, 0.307113975
-)
+-- [[ REMOTES ]] --
+local Network            = ReplicatedStorage:WaitForChild("Network")
+local CombatAction       = Network:WaitForChild("CombatAction")
+local PrestigeEvent      = Network:WaitForChild("PrestigeEvent")
+local StandStorageAction = Network:WaitForChild("StandStorageAction")
+local DungeonAction      = Network:WaitForChild("DungeonAction")
+local WorldBossAction    = Network:WaitForChild("WorldBossAction")
 
-local CFrame2 = CFrame.new(
-	-1880.58508, 8.5140295, -739.799622,
-	0.986630619, -4.39580568e-08, -0.16297254,
-	4.29249845e-08, 1, -9.86027615e-09,
-	0.16297254, 2.73285661e-09, 0.986630619
-)
+-- [[ TIMING ]] --
+local ACTION_CD = 0.2
 
-local looping    = false
-local loopThread = nil
-local mode       = "C"
-local player     = Players.LocalPlayer
+-- [[ FIRE HELPERS ]] --
+local function FirePrestige()    PrestigeEvent:FireServer()                          end
+local function SwapStyle(slot)   StandStorageAction:FireServer("SwapStyle", slot)    end
+local function SwapStand(slot)   StandStorageAction:FireServer("Swap", slot)         end
+local function StartDungeon()    DungeonAction:FireServer("StartDungeon", "Endless") end
+local function EngageWorldBoss() WorldBossAction:FireServer("Engage")                end
 
--- ─── GUI ────────────────────────────────────────────────────────────────────
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TeleportLoopGui"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
-screenGui.Parent = player:WaitForChild("PlayerGui")
-
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 210, 0, 122)
-frame.Position = UDim2.new(0, 20, 0, 80)
-frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = screenGui
-
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-
-local frameStroke = Instance.new("UIStroke", frame)
-frameStroke.Color = Color3.fromRGB(80, 70, 130)
-frameStroke.Thickness = 1.5
-
--- Title
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -36, 0, 28)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "TP LOOP"
-title.TextColor3 = Color3.fromRGB(170, 160, 220)
-title.TextSize = 13
-title.Font = Enum.Font.GothamMedium
-title.TextXAlignment = Enum.TextXAlignment.Center
-
--- Trashcan button
-local trashBtn = Instance.new("TextButton", frame)
-trashBtn.Size = UDim2.new(0, 26, 0, 26)
-trashBtn.Position = UDim2.new(1, -30, 0, 1)
-trashBtn.BackgroundColor3 = Color3.fromRGB(35, 20, 22)
-trashBtn.BorderSizePixel = 0
-trashBtn.Text = ""
-trashBtn.AutoButtonColor = false
-trashBtn.ZIndex = 5
-Instance.new("UICorner", trashBtn).CornerRadius = UDim.new(0, 6)
-
-local trashStroke = Instance.new("UIStroke", trashBtn)
-trashStroke.Color = Color3.fromRGB(140, 50, 60)
-trashStroke.Thickness = 1
-
-local lid = Instance.new("Frame", trashBtn)
-lid.Size = UDim2.new(0, 14, 0, 2)
-lid.Position = UDim2.new(0.5, -7, 0, 5)
-lid.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
-lid.BorderSizePixel = 0
-Instance.new("UICorner", lid).CornerRadius = UDim.new(0, 1)
-
-local lidHandle = Instance.new("Frame", trashBtn)
-lidHandle.Size = UDim2.new(0, 6, 0, 2)
-lidHandle.Position = UDim2.new(0.5, -3, 0, 3)
-lidHandle.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
-lidHandle.BorderSizePixel = 0
-Instance.new("UICorner", lidHandle).CornerRadius = UDim.new(0, 1)
-
-local trashBody = Instance.new("Frame", trashBtn)
-trashBody.Size = UDim2.new(0, 12, 0, 11)
-trashBody.Position = UDim2.new(0.5, -6, 0, 9)
-trashBody.BackgroundColor3 = Color3.fromRGB(220, 80, 90)
-trashBody.BorderSizePixel = 0
-Instance.new("UICorner", trashBody).CornerRadius = UDim.new(0, 2)
-
-for i = 0, 2 do
-	local line = Instance.new("Frame", trashBody)
-	line.Size = UDim2.new(0, 2, 1, -4)
-	line.Position = UDim2.new(0, 2 + i * 4, 0, 2)
-	line.BackgroundColor3 = Color3.fromRGB(35, 20, 22)
-	line.BorderSizePixel = 0
-	Instance.new("UICorner", line).CornerRadius = UDim.new(0, 1)
+local function StoryUseSkill(name)
+    CombatAction:FireServer("Attack", { SkillName = name })
+end
+local function DungeonUseSkill(name)
+    DungeonAction:FireServer("Attack", name)
+end
+local function WorldBossUseSkill(name)
+    WorldBossAction:FireServer("Attack", { SkillName = name })
 end
 
-local trashHint = Instance.new("TextLabel", trashBtn)
-trashHint.Size = UDim2.new(1, 0, 0, 8)
-trashHint.Position = UDim2.new(0, 0, 1, 1)
-trashHint.BackgroundTransparency = 1
-trashHint.Text = "[ ' ]"
-trashHint.TextColor3 = Color3.fromRGB(140, 50, 60)
-trashHint.TextSize = 7
-trashHint.Font = Enum.Font.Gotham
-
--- Status label
-local statusLabel = Instance.new("TextLabel", frame)
-statusLabel.Size = UDim2.new(1, -16, 0, 18)
-statusLabel.Position = UDim2.new(0, 8, 0, 28)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "● IDLE"
-statusLabel.TextColor3 = Color3.fromRGB(120, 120, 150)
-statusLabel.TextSize = 12
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
--- ─── MODE SELECTOR (3 buttons: C / J / BOTH) ────────────────────────────────
-
-local selectorBg = Instance.new("Frame", frame)
-selectorBg.Size = UDim2.new(1, -16, 0, 26)
-selectorBg.Position = UDim2.new(0, 8, 0, 48)
-selectorBg.BackgroundColor3 = Color3.fromRGB(13, 13, 18)
-selectorBg.BorderSizePixel = 0
-Instance.new("UICorner", selectorBg).CornerRadius = UDim.new(0, 7)
-
-local selStroke = Instance.new("UIStroke", selectorBg)
-selStroke.Color = Color3.fromRGB(50, 50, 70)
-selStroke.Thickness = 1
-
-local W = 1/3
-
-local btnC = Instance.new("TextButton", selectorBg)
-btnC.Size = UDim2.new(W, -2, 1, -4)
-btnC.Position = UDim2.new(0, 2, 0, 2)
-btnC.BackgroundColor3 = Color3.fromRGB(60, 50, 110)
-btnC.BorderSizePixel = 0
-btnC.Text = "C"
-btnC.TextColor3 = Color3.fromRGB(210, 200, 255)
-btnC.TextSize = 12
-btnC.Font = Enum.Font.GothamMedium
-Instance.new("UICorner", btnC).CornerRadius = UDim.new(0, 5)
-
-local btnJ = Instance.new("TextButton", selectorBg)
-btnJ.Size = UDim2.new(W, -2, 1, -4)
-btnJ.Position = UDim2.new(W, 0, 0, 2)
-btnJ.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-btnJ.BorderSizePixel = 0
-btnJ.Text = "J"
-btnJ.TextColor3 = Color3.fromRGB(100, 100, 130)
-btnJ.TextSize = 12
-btnJ.Font = Enum.Font.GothamMedium
-Instance.new("UICorner", btnJ).CornerRadius = UDim.new(0, 5)
-
-local btnBoth = Instance.new("TextButton", selectorBg)
-btnBoth.Size = UDim2.new(W, -2, 1, -4)
-btnBoth.Position = UDim2.new(W * 2, 0, 0, 2)
-btnBoth.BackgroundColor3 = Color3.fromRGB(30, 30, 42)
-btnBoth.BorderSizePixel = 0
-btnBoth.Text = "BOTH"
-btnBoth.TextColor3 = Color3.fromRGB(100, 100, 130)
-btnBoth.TextSize = 11
-btnBoth.Font = Enum.Font.GothamMedium
-Instance.new("UICorner", btnBoth).CornerRadius = UDim.new(0, 5)
-
--- Toggle button
-local button = Instance.new("TextButton", frame)
-button.Size = UDim2.new(1, -16, 0, 30)
-button.Position = UDim2.new(0, 8, 0, 84)
-button.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
-button.BorderSizePixel = 0
-button.Text = "START  [K]"
-button.TextColor3 = Color3.fromRGB(210, 200, 255)
-button.TextSize = 13
-button.Font = Enum.Font.GothamMedium
-Instance.new("UICorner", button).CornerRadius = UDim.new(0, 7)
-
-local btnStroke = Instance.new("UIStroke", button)
-btnStroke.Color = Color3.fromRGB(100, 85, 180)
-btnStroke.Thickness = 1.2
-
--- ─── GUI STATE ──────────────────────────────────────────────────────────────
-
-local ON_COL  = Color3.fromRGB(60, 50, 110)
-local ON_TXT  = Color3.fromRGB(210, 200, 255)
-local OFF_COL = Color3.fromRGB(30, 30, 42)
-local OFF_TXT = Color3.fromRGB(100, 100, 130)
-
-local modeBtns = { C = btnC, J = btnJ, BOTH = btnBoth }
-
-local function updateModeButtons()
-	for m, btn in pairs(modeBtns) do
-		if m == mode then
-			btn.BackgroundColor3 = ON_COL
-			btn.TextColor3 = ON_TXT
-		else
-			btn.BackgroundColor3 = OFF_COL
-			btn.TextColor3 = OFF_TXT
-		end
-	end
+-- ================================================================
+-- [[ PATH HELPERS ]]
+-- ================================================================
+local function SafeGet(root, ...)
+    local cur = root
+    for _, n in ipairs({...}) do
+        if not cur then return nil end
+        cur = cur:FindFirstChild(n)
+    end
+    return cur
 end
 
-local function setGuiActive(active)
-	if active then
-		statusLabel.Text = "● RUNNING  [" .. mode .. "]"
-		statusLabel.TextColor3 = Color3.fromRGB(80, 220, 130)
-		button.Text = "STOP  [K]"
-		button.BackgroundColor3 = Color3.fromRGB(90, 25, 35)
-		button.TextColor3 = Color3.fromRGB(255, 160, 160)
-		btnStroke.Color = Color3.fromRGB(200, 60, 75)
-		frameStroke.Color = Color3.fromRGB(80, 200, 110)
-	else
-		statusLabel.Text = "● IDLE"
-		statusLabel.TextColor3 = Color3.fromRGB(120, 120, 150)
-		button.Text = "START  [K]"
-		button.BackgroundColor3 = Color3.fromRGB(60, 50, 100)
-		button.TextColor3 = Color3.fromRGB(210, 200, 255)
-		btnStroke.Color = Color3.fromRGB(100, 85, 180)
-		frameStroke.Color = Color3.fromRGB(80, 70, 130)
-	end
+local function ResolveRoot(pathStr)
+    local node = PlayerGui
+    for part in pathStr:gmatch("[^%.]+") do
+        if not node then return nil end
+        node = node:FindFirstChild(part)
+    end
+    return node
 end
 
--- ─── DESTROY ────────────────────────────────────────────────────────────────
+-- ================================================================
+-- [[ COMBAT CONTEXTS ]]
+-- ================================================================
+local BASE         = "JJBIMenu.MainFrame.ContentContainer.SingleplayerFrame.MainPanel.InnerContent.ContentArea"
+local STORY_ROOT   = BASE .. ".StoryFrame.CombatMainFrame.ContentContainer"
+local DUNGEON_ROOT = BASE .. ".DungeonFrame.CombatMainFrame.ContentContainer"
+local WBOSS_ROOT   = BASE .. ".WorldBossFrame.CombatMainFrame.ContentContainer"
 
-local destroyed = false
-
-local function destroyAll()
-	if destroyed then return end
-	destroyed = true
-	looping = false
-	if loopThread then
-		task.cancel(loopThread)
-		loopThread = nil
-	end
-	if screenGui and screenGui.Parent then
-		screenGui:Destroy()
-	end
-	script:Destroy()
-	print("[TeleportLoop] Destroyed")
+local function MakeContext(rootPath, useSkillFn)
+    return {
+        Root              = function() return ResolveRoot(rootPath) end,
+        UseSkill          = useSkillFn,
+        HasBlockedThisDip = false,
+    }
 end
 
--- ─── LOGIC ──────────────────────────────────────────────────────────────────
+local StoryCtx     = MakeContext(STORY_ROOT,   StoryUseSkill)
+local DungeonCtx   = MakeContext(DUNGEON_ROOT, DungeonUseSkill)
+local WorldBossCtx = MakeContext(WBOSS_ROOT,   WorldBossUseSkill)
 
-local function getHRP()
-	local char = player.Character or player.CharacterAdded:Wait()
-	return char:WaitForChild("HumanoidRootPart")
+local DUNGEON_LOG_PATH = {
+    "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+    "MainPanel","InnerContent","ContentArea","DungeonFrame",
+    "CombatMainFrame","ContentContainer","ChatboxArea","ChatScroll","LogText"
+}
+
+-- ================================================================
+-- [[ LOADOUT DEFINITIONS ]]
+-- ================================================================
+local LOADOUT = {
+    Style = {
+        ULF    = { signature = "Light Slip Blades", label = "ULF"    },
+        Shrine = { signature = "Dismantle",          label = "Shrine" },
+    },
+    Stand = {
+        TuskAct4 = { signature = "Infinite Rotation", label = "Tusk Act 4" },
+        KingOfU  = { signature = "Raging Demon",      label = "King of U"  },
+    },
+}
+
+local INV_STYLE_PATH = {
+    "JJBIMenu","MainFrame","ContentContainer","InventoryFrame",
+    "MainPanel","InnerContent","TabContainer","PlayerTabContent",
+    "PlayerInfoCard","StyleRow","Label"
+}
+local INV_STAND_PATH = {
+    "JJBIMenu","MainFrame","ContentContainer","InventoryFrame",
+    "MainPanel","InnerContent","TabContainer","StandTabContent",
+    "StandInfoCard","StandRow","Label"
+}
+
+-- ================================================================
+-- [[ RESOURCE THRESHOLDS ]]
+-- ================================================================
+local ENERGY_THRESHOLD  = 20
+local STAMINA_THRESHOLD = 20
+local HP_DANGER         = 0.30
+local HP_HEAL           = 0.74
+
+-- ================================================================
+-- [[ GUI ]]
+-- ================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoJJBIGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 230, 0, 215)
+MainFrame.Position = UDim2.new(0.5, -115, 0.02, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = MainFrame
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(80,80,120); s.Thickness = 1.2; s.Parent = MainFrame
 end
 
-local function pressKey(key)
-	local ok, VIM = pcall(function()
-		return game:GetService("VirtualInputManager")
-	end)
-	if ok and VIM then
-		VIM:SendKeyEvent(true, key, false, game)
-		task.wait(0.05)
-		VIM:SendKeyEvent(false, key, false, game)
-	else
-		warn("[TeleportLoop] VirtualInputManager unavailable")
-	end
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 28)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,8); c.Parent = TitleBar
+    local p = Instance.new("Frame")
+    p.Size = UDim2.new(1,0,0.5,0); p.Position = UDim2.new(0,0,0.5,0)
+    p.BackgroundColor3 = Color3.fromRGB(30,30,45); p.BorderSizePixel = 0; p.Parent = TitleBar
 end
 
--- Mode C: TP loc1 → press C → 2s → TP loc2 → 5s → repeat
-local function runLoopC()
-	while looping do
-		local hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame1
-		print("[TeleportLoop][C] Teleported to Location 1")
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1,0,1,0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "JJBI Auto"
+TitleLabel.TextColor3 = Color3.fromRGB(200,200,255)
+TitleLabel.TextSize = 13
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+TitleLabel.Parent = TitleBar
 
-		task.wait(0.3)
-		if not looping then break end
-
-		pressKey(Enum.KeyCode.C)
-		print("[TeleportLoop][C] Pressed C")
-
-		task.wait(2)
-		if not looping then break end
-
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame2
-		print("[TeleportLoop][C] Teleported to Location 2")
-
-		task.wait(5)
-	end
-	print("[TeleportLoop][C] Loop ended")
+local PrestigeBtn = Instance.new("TextButton")
+PrestigeBtn.Size = UDim2.new(0, 24, 0, 18)
+PrestigeBtn.Position = UDim2.new(0.5, 44, 0, 5)
+PrestigeBtn.BackgroundColor3 = Color3.fromRGB(40, 30, 30)
+PrestigeBtn.TextColor3 = Color3.fromRGB(160, 80, 80)
+PrestigeBtn.Text = "P"
+PrestigeBtn.TextSize = 10
+PrestigeBtn.Font = Enum.Font.GothamBold
+PrestigeBtn.BorderSizePixel = 0
+PrestigeBtn.Parent = TitleBar
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = PrestigeBtn
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(100,40,40); s.Thickness = 1; s.Parent = PrestigeBtn
 end
 
--- Mode J: TP loc1 → press J → 1s → TP loc2 → 20s → repeat
-local function runLoopJ()
-	while looping do
-		local hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame1
-		print("[TeleportLoop][J] Teleported to Location 1")
+local InfoStrip = Instance.new("Frame")
+InfoStrip.Size = UDim2.new(1, -20, 0, 52)
+InfoStrip.Position = UDim2.new(0, 10, 0, 33)
+InfoStrip.BackgroundColor3 = Color3.fromRGB(24, 24, 36)
+InfoStrip.BorderSizePixel = 0
+InfoStrip.Parent = MainFrame
+do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,5); c.Parent = InfoStrip end
 
-		task.wait(0.3)
-		if not looping then break end
+local function MakeInfoRow(yOffset, defaultText, labelColor)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -34, 0, 22)
+    lbl.Position = UDim2.new(0, 6, 0, yOffset)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = defaultText
+    lbl.TextColor3 = labelColor
+    lbl.TextSize = 10
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = InfoStrip
 
-		pressKey(Enum.KeyCode.J)
-		print("[TeleportLoop][J] Pressed J")
+    local swapBtn = Instance.new("TextButton")
+    swapBtn.Size = UDim2.new(0, 24, 0, 18)
+    swapBtn.Position = UDim2.new(1, -28, 0, yOffset + 2)
+    swapBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    swapBtn.TextColor3 = Color3.fromRGB(180, 180, 255)
+    swapBtn.Text = "R"
+    swapBtn.TextSize = 11
+    swapBtn.Font = Enum.Font.GothamBold
+    swapBtn.BorderSizePixel = 0
+    swapBtn.Parent = InfoStrip
+    do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = swapBtn end
 
-		task.wait(1)
-		if not looping then break end
-
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame2
-		print("[TeleportLoop][J] Teleported to Location 2")
-
-		task.wait(20)
-	end
-	print("[TeleportLoop][J] Loop ended")
+    return lbl, swapBtn
 end
 
--- Mode BOTH:
---   TP loc1 → J → 1s → TP loc2 → 7s
---   TP loc1 → C → 2s → TP loc2 → 5s
---   TP loc1 → C → 2s → TP loc2 → 5s → repeat
-local function runLoopBoth()
-	while looping do
-		local hrp
+local StandLabel, StandSwapBtn = MakeInfoRow(3,  "Stand: ---", Color3.fromRGB(160,200,255))
+local StyleLabel, StyleSwapBtn = MakeInfoRow(28, "Style: ---", Color3.fromRGB(255,200,140))
 
-		-- J round
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame1
-		print("[TeleportLoop][BOTH] Teleported to Location 1 (J)")
-
-		task.wait(0.3)
-		if not looping then break end
-
-		pressKey(Enum.KeyCode.J)
-		print("[TeleportLoop][BOTH] Pressed J")
-
-		task.wait(1)
-		if not looping then break end
-
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame2
-		print("[TeleportLoop][BOTH] Teleported to Location 2 (after J)")
-
-		task.wait(7)
-		if not looping then break end
-
-		-- C round 1
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame1
-		print("[TeleportLoop][BOTH] Teleported to Location 1 (C #1)")
-
-		task.wait(0.3)
-		if not looping then break end
-
-		pressKey(Enum.KeyCode.C)
-		print("[TeleportLoop][BOTH] Pressed C (#1)")
-
-		task.wait(2)
-		if not looping then break end
-
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame2
-		print("[TeleportLoop][BOTH] Teleported to Location 2 (after C #1)")
-
-		task.wait(5)
-		if not looping then break end
-
-		-- C round 2
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame1
-		print("[TeleportLoop][BOTH] Teleported to Location 1 (C #2)")
-
-		task.wait(0.3)
-		if not looping then break end
-
-		pressKey(Enum.KeyCode.C)
-		print("[TeleportLoop][BOTH] Pressed C (#2)")
-
-		task.wait(2)
-		if not looping then break end
-
-		hrp = getHRP()
-		if not hrp then break end
-		hrp.CFrame = CFrame2
-		print("[TeleportLoop][BOTH] Teleported to Location 2 (after C #2)")
-
-		task.wait(5)
-	end
-	print("[TeleportLoop][BOTH] Loop ended")
+local PrestigeGlow = Instance.new("Frame")
+PrestigeGlow.Name = "PrestigeGlow"
+PrestigeGlow.Size = UDim2.new(1, -20, 0, 14)
+PrestigeGlow.Position = UDim2.new(0, 10, 0, 89)
+PrestigeGlow.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+PrestigeGlow.BorderSizePixel = 0
+PrestigeGlow.Visible = false
+PrestigeGlow.ZIndex = 2
+PrestigeGlow.Parent = MainFrame
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = PrestigeGlow
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(220,50,50)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,100,100)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(220,50,50)),
+    })
+    g.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0,   0.3),
+        NumberSequenceKeypoint.new(0.5, 0.0),
+        NumberSequenceKeypoint.new(1,   0.3),
+    })
+    g.Parent = PrestigeGlow
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1,0,1,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "Prestige Enabled"
+    lbl.TextColor3 = Color3.fromRGB(255,200,200)
+    lbl.TextSize = 8
+    lbl.Font = Enum.Font.GothamBold
+    lbl.ZIndex = 3
+    lbl.Parent = PrestigeGlow
 end
 
-local function startLoop()
-	if looping then return end
-	looping = true
-	setGuiActive(true)
-	if mode == "C" then
-		loopThread = task.spawn(runLoopC)
-	elseif mode == "J" then
-		loopThread = task.spawn(runLoopJ)
-	else
-		loopThread = task.spawn(runLoopBoth)
-	end
-	print("[TeleportLoop] Started — Mode:", mode)
+local function MakeButton(yPos, height, bgColor, textColor, text, fontSize)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, height)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = bgColor
+    btn.TextColor3 = textColor
+    btn.Text = text
+    btn.TextSize = fontSize or 13
+    btn.Font = Enum.Font.GothamBold
+    btn.BorderSizePixel = 0
+    btn.Parent = MainFrame
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = btn
+    return btn
 end
 
-local function stopLoop()
-	if not looping then return end
-	looping = false
-	if loopThread then
-		task.cancel(loopThread)
-		loopThread = nil
-	end
-	setGuiActive(false)
-	print("[TeleportLoop] Stopped")
+local StoryBtn   = MakeButton(105, 32, Color3.fromRGB(45,45,70), Color3.fromRGB(180,180,255), "Auto Story",   13)
+local DungeonBtn = MakeButton(145, 32, Color3.fromRGB(45,45,70), Color3.fromRGB(180,180,255), "Auto Dungeon", 13)
+local KillBtn    = MakeButton(185, 24, Color3.fromRGB(80,28,28), Color3.fromRGB(255,120,120), "Kill Script",  12)
+
+local function ApplyDisabledOverlay(btn)
+    if btn:FindFirstChild("DisabledOverlay") then return end
+    local overlay = Instance.new("Frame")
+    overlay.Name = "DisabledOverlay"
+    overlay.Size = UDim2.new(1,0,1,0)
+    overlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    overlay.BackgroundTransparency = 0.45
+    overlay.BorderSizePixel = 0
+    overlay.ZIndex = btn.ZIndex + 1
+    overlay.Parent = btn
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = overlay
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20,20,40)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(5,5,15)),
+    })
+    g.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.3),
+        NumberSequenceKeypoint.new(1, 0.6),
+    })
+    g.Parent = overlay
 end
 
-local function toggle()
-	if looping then stopLoop() else startLoop() end
+local function RemoveDisabledOverlay(btn)
+    local o = btn:FindFirstChild("DisabledOverlay")
+    if o then o:Destroy() end
 end
 
--- ─── EVENTS ─────────────────────────────────────────────────────────────────
+local function LockButton(btn)   btn.Active = false; ApplyDisabledOverlay(btn) end
+local function UnlockButton(btn) btn.Active = true;  RemoveDisabledOverlay(btn) end
 
-btnC.MouseButton1Click:Connect(function()
-	if looping then return end
-	mode = "C"
-	updateModeButtons()
+-- ================================================================
+-- [[ STATE ]]
+-- ================================================================
+local StoryEnabled      = false
+local DungeonEnabled    = false
+local PrestigeEnabled   = false
+local WorldBossPriority = false
+local CurrentStand      = "---"
+local CurrentStyle      = "---"
+local PreBossStand      = "---"
+local PreBossStyle      = "---"
+
+local function UpdatePrestigeVisuals()
+    if PrestigeEnabled then
+        PrestigeBtn.BackgroundColor3 = Color3.fromRGB(120,30,30)
+        PrestigeBtn.TextColor3       = Color3.fromRGB(255,150,150)
+        PrestigeGlow.Visible         = true
+    else
+        PrestigeBtn.BackgroundColor3 = Color3.fromRGB(40,30,30)
+        PrestigeBtn.TextColor3       = Color3.fromRGB(160,80,80)
+        PrestigeGlow.Visible         = false
+    end
+end
+
+-- ================================================================
+-- [[ COMBAT READS ]]
+-- ================================================================
+local function GetPlayerFighter(ctx)
+    return SafeGet(ctx.Root(), "HealthbarArea","AlliesContainer","Fighter_Player")
+end
+
+local function GetEnemyFighter(ctx)
+    return SafeGet(ctx.Root(), "HealthbarArea","EnemiesContainer","Fighter_Enemy")
+end
+
+local function IsInStoryBattle()
+    return GetPlayerFighter(StoryCtx) ~= nil and GetEnemyFighter(StoryCtx) ~= nil
+end
+
+local function IsInDungeonBattle()
+    return GetPlayerFighter(DungeonCtx) ~= nil and GetEnemyFighter(DungeonCtx) ~= nil
+end
+
+local function TryFleeFromDungeon()
+    DungeonUseSkill("Flee")
+    local logText = SafeGet(PlayerGui, table.unpack(DUNGEON_LOG_PATH))
+    if not logText then task.wait(1); return false end
+    local waited = 0
+    while waited < 3 do
+        if (logText.Text or ""):find("DUNGEON FLED!") then
+            return true
+        end
+        task.wait(0.2); waited += 0.2
+    end
+    return false
+end
+
+local function GetResources(ctx)
+    local label = SafeGet(ctx.Root(), "ResourceLabel")
+    if not label then return 0, 0 end
+    local text    = label.Text or ""
+    local energy  = tonumber(text:match("ENERGY:%s*(%d+)"))  or 0
+    local stamina = tonumber(text:match("STAMINA:%s*(%d+)")) or 0
+    return energy, stamina
+end
+
+local function GetHP(ctx)
+    local fighter = GetPlayerFighter(ctx)
+    if not fighter then return 999, 999, 1 end
+    local hpText = SafeGet(fighter, "InfoArea","HpContainer","HpText")
+    if not hpText then return 999, 999, 1 end
+    local cur, max = (hpText.Text or ""):match("(%d+)%s*/%s*(%d+)")
+    cur = tonumber(cur) or 999
+    max = tonumber(max) or 999
+    return cur, max, (max > 0 and cur / max or 1)
+end
+
+local function GetStatusDuration(fighter, statusName)
+    if not fighter then return 0 end
+    local container = SafeGet(fighter, "InfoArea","StatusContainer")
+    if not container then return 0 end
+    local lower = statusName:lower()
+    for _, frame in ipairs(container:GetChildren()) do
+        if frame:IsA("Frame") then
+            local nameMatch  = frame.Name:lower() == lower
+            local titleAttr  = frame:GetAttribute("Title")
+            local titleMatch = titleAttr and tostring(titleAttr):lower() == lower
+            if nameMatch or titleMatch then
+                local durAttr = frame:GetAttribute("TooltipDur")
+                if durAttr then return tonumber(durAttr) or 0 end
+                local durLabel = frame:FindFirstChild("Duration")
+                if durLabel and durLabel:IsA("TextLabel") then
+                    return tonumber(durLabel.Text) or 0
+                end
+                return 1
+            end
+        end
+    end
+    return 0
+end
+
+local function FighterHasStatus(fighter, name)
+    return GetStatusDuration(fighter, name) > 0
+end
+
+local function IsPlayerIncapacitated(ctx)
+    local f = GetPlayerFighter(ctx)
+    return FighterHasStatus(f,"Stun") or FighterHasStatus(f,"Freeze")
+end
+
+local function IsConfused(ctx)
+    return FighterHasStatus(GetPlayerFighter(ctx),"Confusion")
+end
+
+local function PlayerHasStrengthBuff(ctx)
+    return FighterHasStatus(GetPlayerFighter(ctx),"Buff_Strength")
+end
+
+local function EnemyHasStatus(ctx, name) return FighterHasStatus(GetEnemyFighter(ctx), name)               end
+local function EnemyIsStunImmune(ctx)    return EnemyHasStatus(ctx,"StunImmunity")                         end
+local function EnemyIsConfImmune(ctx)    return EnemyHasStatus(ctx,"ConfImmunity")                         end
+local function EnemyIsStunned(ctx)       return EnemyHasStatus(ctx,"Stun") or EnemyHasStatus(ctx,"Freeze") end
+local function EnemyIsConfused(ctx)      return EnemyHasStatus(ctx,"Confusion")                            end
+local function EnemyIsPoisoned(ctx)      return EnemyHasStatus(ctx,"Poison")                               end
+local function EnemyIsBurning(ctx)       return EnemyHasStatus(ctx,"Burn")                                 end
+local function EnemyIsBleeding(ctx)      return EnemyHasStatus(ctx,"Bleed")                                end
+
+-- ================================================================
+-- [[ MOVESET — live scan per tick ]]
+-- ================================================================
+local function GetMoveButton(ctx, skillName)
+    local area = SafeGet(ctx.Root(), "AbilitiesArea")
+    if not area then return nil end
+    for _, btn in ipairs(area:GetChildren()) do
+        if btn:IsA("TextButton") then
+            local base = btn.Name:match("^(.-)%s*%(%d+%)%s*$") or btn.Name
+            if base == skillName then return btn end
+        end
+    end
+    return nil
+end
+
+local function CanUse(ctx, skillName)
+    local btn = GetMoveButton(ctx, skillName)
+    if not btn then return false end
+    return not btn.Name:match("%(%d+%)")
+end
+
+local function UseSkill(ctx, name)
+    ctx.UseSkill(name)
+end
+
+-- ================================================================
+-- [[ LOADOUT DETECTION ]]
+-- ================================================================
+local function UpdateLoadoutLabels()
+    StandLabel.Text = "Stand: " .. CurrentStand
+    StyleLabel.Text = "Style: " .. CurrentStyle
+end
+
+local function DetectLoadoutFromInventory()
+    local styleNode = SafeGet(PlayerGui, table.unpack(INV_STYLE_PATH))
+    local standNode = SafeGet(PlayerGui, table.unpack(INV_STAND_PATH))
+    if styleNode then
+        local t = styleNode.Text or ""
+        if     t:find("ULTIMATE LIFEFORM") then CurrentStyle = "ULF"
+        elseif t:find("SHRINE")            then CurrentStyle = "Shrine"
+        else                                    CurrentStyle = "Unknown" end
+    end
+    if standNode then
+        local t = standNode.Text or ""
+        if     t:find("TUSK ACT 4") then CurrentStand = "Tusk Act 4"
+        elseif t:find("KING OF U")  then CurrentStand = "King of U"
+        else                             CurrentStand = "Unknown" end
+    end
+    UpdateLoadoutLabels()
+    -- print(string.format("[AutoJJBI] Loadout — Stand: %s | Style: %s", CurrentStand, CurrentStyle))
+end
+
+local function ConfirmLoadoutInCombat(ctx)
+    local area = SafeGet(ctx.Root(), "AbilitiesArea")
+    if not area then return end
+    for _, btn in ipairs(area:GetChildren()) do
+        if btn:IsA("TextButton") then
+            local base = btn.Name:match("^(.-)%s*%(%d+%)%s*$") or btn.Name
+            for _, data in pairs(LOADOUT.Style) do
+                if base == data.signature then CurrentStyle = data.label end
+            end
+            for _, data in pairs(LOADOUT.Stand) do
+                if base == data.signature then CurrentStand = data.label end
+            end
+        end
+    end
+    UpdateLoadoutLabels()
+end
+
+local function EnsureULFForStory()
+    if CurrentStyle == "ULF" then return end
+    -- warn("[Story] Style is not ULF — swapping.")
+    SwapStyle(1)
+    local waited = 0
+    while waited < 5 do
+        task.wait(0.3); waited += 0.3
+        DetectLoadoutFromInventory()
+        if CurrentStyle == "ULF" then return end
+    end
+    -- warn("[Story] ULF swap timed out — proceeding.")
+end
+
+-- ================================================================
+-- [[ COMBAT DECISION ENGINE (Story + Dungeon) ]]
+-- ================================================================
+local function RunCombatTick(ctx)
+    local _, _, hpPct     = GetHP(ctx)
+    local energy, stamina = GetResources(ctx)
+
+    if IsPlayerIncapacitated(ctx) then UseSkill(ctx,"Rest"); return end
+    if IsConfused(ctx)            then UseSkill(ctx,"Rest"); return end
+
+    if hpPct < HP_DANGER then
+        if     CanUse(ctx,"Instant Reformation") then UseSkill(ctx,"Instant Reformation")
+        elseif CanUse(ctx,"Block")               then UseSkill(ctx,"Block")
+        else                                          UseSkill(ctx,"Rest")
+        end
+        return
+    end
+
+    if hpPct < HP_HEAL then
+        if CanUse(ctx,"Instant Reformation") then
+            ctx.HasBlockedThisDip = false
+            UseSkill(ctx,"Instant Reformation"); return
+        end
+        if not ctx.HasBlockedThisDip then
+            ctx.HasBlockedThisDip = true
+            if CanUse(ctx,"Block") then UseSkill(ctx,"Block"); return end
+        end
+    else
+        ctx.HasBlockedThisDip = false
+    end
+
+    local hasEnergy  = energy  >= ENERGY_THRESHOLD
+    local hasStamina = stamina >= STAMINA_THRESHOLD
+
+    if not hasEnergy and not hasStamina then UseSkill(ctx,"Rest"); return end
+
+    if hasEnergy and CanUse(ctx,"Illusory Presence") then
+        if not EnemyIsConfImmune(ctx) and not EnemyIsConfused(ctx) then
+            UseSkill(ctx,"Illusory Presence"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Dimensional Slash") then
+        if not EnemyIsBleeding(ctx) then
+            UseSkill(ctx,"Dimensional Slash"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Rain of Debris") then
+        UseSkill(ctx,"Rain of Debris"); return
+    end
+
+    if hasEnergy and CanUse(ctx,"Golden Spin") then
+        if not EnemyIsStunImmune(ctx) and not EnemyIsStunned(ctx) then
+            UseSkill(ctx,"Golden Spin"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Cellular Destruction") then
+        if not EnemyIsPoisoned(ctx) then
+            UseSkill(ctx,"Cellular Destruction"); return
+        end
+    end
+
+    if hasStamina and CanUse(ctx,"Melting Overdrive") then
+        if not EnemyIsBurning(ctx) then
+            UseSkill(ctx,"Melting Overdrive"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Infinite Rotation") then
+        UseSkill(ctx,"Infinite Rotation"); return
+    end
+    if hasEnergy and CanUse(ctx,"Raging Demon") then
+        UseSkill(ctx,"Raging Demon"); return
+    end
+
+    if not hasEnergy and hasStamina then
+        if CanUse(ctx,"Melting Overdrive") then UseSkill(ctx,"Melting Overdrive"); return end
+        UseSkill(ctx,"Rest"); return
+    end
+    if hasEnergy and not hasStamina then
+        if     CanUse(ctx,"Infinite Rotation") then UseSkill(ctx,"Infinite Rotation"); return
+        elseif CanUse(ctx,"Raging Demon")      then UseSkill(ctx,"Raging Demon");      return
+        else                                        UseSkill(ctx,"Rest");               return
+        end
+    end
+
+    UseSkill(ctx,"Rest")
+end
+
+-- ================================================================
+-- [[ WORLD BOSS COMBAT TICK ]]
+-- ================================================================
+local function RunWorldBossTick()
+    local ctx             = WorldBossCtx
+    local _, _, hpPct     = GetHP(ctx)
+    local energy, stamina = GetResources(ctx)
+
+    if IsPlayerIncapacitated(ctx) then UseSkill(ctx,"Rest"); return end
+    if IsConfused(ctx)            then UseSkill(ctx,"Rest"); return end
+
+    if hpPct < HP_DANGER then
+        if     CanUse(ctx,"Instant Reformation") then UseSkill(ctx,"Instant Reformation")
+        elseif CanUse(ctx,"Block")               then UseSkill(ctx,"Block")
+        else                                          UseSkill(ctx,"Rest")
+        end
+        return
+    end
+
+    if hpPct < HP_HEAL then
+        if CanUse(ctx,"Instant Reformation") then
+            ctx.HasBlockedThisDip = false
+            UseSkill(ctx,"Instant Reformation"); return
+        end
+        if not ctx.HasBlockedThisDip then
+            ctx.HasBlockedThisDip = true
+            if CanUse(ctx,"Block") then UseSkill(ctx,"Block"); return end
+        end
+    else
+        ctx.HasBlockedThisDip = false
+    end
+
+    local hasEnergy  = energy  >= ENERGY_THRESHOLD
+    local hasStamina = stamina >= STAMINA_THRESHOLD
+
+    if not hasEnergy and not hasStamina then UseSkill(ctx,"Rest"); return end
+
+    if hasEnergy and CanUse(ctx,"Golden Spin") then
+        if not EnemyIsStunImmune(ctx) and not EnemyIsStunned(ctx) then
+            UseSkill(ctx,"Golden Spin"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Illusory Presence") then
+        if not EnemyIsConfImmune(ctx) and not EnemyIsConfused(ctx) then
+            UseSkill(ctx,"Illusory Presence"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Cellular Destruction") then
+        if not EnemyIsPoisoned(ctx) then
+            UseSkill(ctx,"Cellular Destruction"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Rain of Debris") then
+        UseSkill(ctx,"Rain of Debris"); return
+    end
+
+    if hasEnergy and CanUse(ctx,"Dimensional Slash") then
+        if not EnemyIsBleeding(ctx) then
+            UseSkill(ctx,"Dimensional Slash"); return
+        end
+    end
+
+    if hasStamina and CanUse(ctx,"Malevolent Shrine") then
+        if not EnemyIsBleeding(ctx) then
+            UseSkill(ctx,"Malevolent Shrine"); return
+        end
+    end
+
+    if hasStamina and CanUse(ctx,"Melting Overdrive") then
+        if not EnemyIsBurning(ctx) then
+            UseSkill(ctx,"Melting Overdrive"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Absolute Energy") then
+        if not PlayerHasStrengthBuff(ctx) then
+            UseSkill(ctx,"Absolute Energy"); return
+        end
+    end
+
+    if hasEnergy and CanUse(ctx,"Infinite Rotation") then
+        UseSkill(ctx,"Infinite Rotation"); return
+    end
+    if hasEnergy and CanUse(ctx,"Raging Demon") then
+        UseSkill(ctx,"Raging Demon"); return
+    end
+
+    if not hasEnergy and hasStamina then
+        if     CanUse(ctx,"Melting Overdrive")  then UseSkill(ctx,"Melting Overdrive");  return
+        elseif CanUse(ctx,"Malevolent Shrine")  then UseSkill(ctx,"Malevolent Shrine");  return
+        else                                         UseSkill(ctx,"Rest");               return
+        end
+    end
+    if hasEnergy and not hasStamina then
+        if     CanUse(ctx,"Infinite Rotation") then UseSkill(ctx,"Infinite Rotation"); return
+        elseif CanUse(ctx,"Raging Demon")      then UseSkill(ctx,"Raging Demon");      return
+        else                                        UseSkill(ctx,"Rest");              return
+        end
+    end
+
+    UseSkill(ctx,"Rest")
+end
+
+-- ================================================================
+-- [[ BATTLE LOOP ]]
+-- ================================================================
+local function RunBattleLoop(ctx, enabledFlag, inBattleFn)
+    ctx.HasBlockedThisDip = false
+    task.wait(0.5)
+    ConfirmLoadoutInCombat(ctx)
+    while enabledFlag() and not ScriptKilled and inBattleFn() do
+        RunCombatTick(ctx)
+        task.wait(ACTION_CD)
+    end
+    ctx.HasBlockedThisDip = false
+end
+
+-- ================================================================
+-- [[ WORLD BOSS HELPERS ]]
+-- ================================================================
+local function ParseTimerLabel()
+    local label = SafeGet(PlayerGui,
+        "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+        "MainPanel","InnerContent","ContentArea","WorldBossFrame",
+        "MenuContainer","InfoCard","TimerLabel"
+    )
+    if not label then return nil end
+    local mins, secs = (label.Text or ""):match("(%d+):(%d+)")
+    if not mins then return nil end
+    return tonumber(mins) * 60 + tonumber(secs)
+end
+
+local function GetEngageBtnText()
+    local btn = SafeGet(PlayerGui,
+        "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+        "MainPanel","InnerContent","ContentArea","WorldBossFrame",
+        "MenuContainer","InfoCard","EngageBtn"
+    )
+    return btn and (btn.Text or "") or ""
+end
+
+local function GetBossNameText()
+    local lbl = SafeGet(PlayerGui,
+        "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+        "MainPanel","InnerContent","ContentArea","WorldBossFrame",
+        "MenuContainer","InfoCard","BossNameLabel"
+    )
+    return lbl and (lbl.Text or "") or ""
+end
+
+local function WaitForBossTimer()
+    while StoryEnabled and not ScriptKilled do
+        local secs = ParseTimerLabel()
+
+        if not secs or secs <= 0 then
+            return
+        end
+
+        if secs > 30 * 60 then
+            -- warn(string.format("[WorldBoss] Timer %ds (>30min) — sleeping 30min then rechecking.", secs))
+            local elapsed = 0
+            while elapsed < 1800 and StoryEnabled and not ScriptKilled do
+                task.wait(1); elapsed += 1
+            end
+
+        elseif secs > 10 * 60 then
+            -- warn(string.format("[WorldBoss] Timer %ds (>10min) — sleeping 10min then rechecking.", secs))
+            local elapsed = 0
+            while elapsed < 600 and StoryEnabled and not ScriptKilled do
+                task.wait(1); elapsed += 1
+            end
+
+        else
+            -- warn(string.format("[WorldBoss] Timer %ds (≤10min) — waiting exact duration.", secs))
+            local elapsed = 0
+            while elapsed < secs and StoryEnabled and not ScriptKilled do
+                task.wait(1); elapsed += 1
+            end
+            return
+        end
+    end
+end
+
+-- ================================================================
+-- [[ WORLD BOSS SCANNER ]]
+-- ================================================================
+local function RunWorldBossScanner()
+    -- Check immediately on start in case a boss is already available
+    local engageText = GetEngageBtnText()
+    if not engageText:find("ENGAGE BOSS") then
+        -- No boss up yet — wait for the timer
+        WaitForBossTimer()
+    end
+
+    while StoryEnabled and not ScriptKilled do
+        local engageText = GetEngageBtnText()
+
+        if engageText:find("ENGAGE BOSS") then
+            -- warn("[WorldBoss] Boss available — flagging priority.")
+            WorldBossPriority = true
+            while WorldBossPriority and StoryEnabled and not ScriptKilled do
+                task.wait(1)
+            end
+            task.wait(10)
+            WaitForBossTimer()
+
+        elseif engageText:find("ALREADY FOUGHT") then
+            -- warn("[WorldBoss] Already fought this cycle.")
+            task.wait(5)
+            WaitForBossTimer()
+
+        else
+            task.wait(5)
+            WaitForBossTimer()
+        end
+    end
+end
+
+-- ================================================================
+-- [[ WORLD BOSS FIGHT ROUTINE ]]
+-- ================================================================
+local function RunWorldBossFight()
+    PreBossStand = CurrentStand
+    PreBossStyle = CurrentStyle
+
+    -- warn(string.format("[WorldBoss] Engaging — %s + %s", CurrentStand, CurrentStyle))
+
+    EngageWorldBoss()
+
+    local turnLabel = SafeGet(PlayerGui,
+        "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+        "MainPanel","InnerContent","ContentArea","WorldBossFrame",
+        "CombatMainFrame","TurnLabel"
+    )
+
+    local waited       = 0
+    local fightStarted = false
+    while waited < 8 and not ScriptKilled do
+        task.wait(0.3); waited += 0.3
+        if turnLabel and (turnLabel.Text or ""):find("Turns Remaining: 10/10") then
+            fightStarted = true
+            break
+        end
+    end
+
+    if not fightStarted then
+        -- warn("[WorldBoss] Fight start unconfirmed — firing fallback attack.")
+        WorldBossUseSkill("Infinite Rotation")
+        task.wait(1)
+    end
+
+    local logText = SafeGet(PlayerGui,
+        "JJBIMenu","MainFrame","ContentContainer","SingleplayerFrame",
+        "MainPanel","InnerContent","ContentArea","WorldBossFrame",
+        "CombatMainFrame","ContentContainer","ChatboxArea","ChatScroll","LogText"
+    )
+
+    WorldBossCtx.HasBlockedThisDip = false
+    task.wait(0.5)
+    ConfirmLoadoutInCombat(WorldBossCtx)
+
+    local elapsed  = 0
+    local finished = false
+
+    while elapsed < 120 and not ScriptKilled do
+        if logText then
+            local log = logText.Text or ""
+            if log:find("Damage Dealt:") or log:find("Loot Secured") then
+                finished = true
+                break
+            end
+        end
+        RunWorldBossTick()
+        task.wait(ACTION_CD)
+        elapsed += ACTION_CD
+    end
+
+    WorldBossCtx.HasBlockedThisDip = false
+
+    if CurrentStyle ~= PreBossStyle then
+        SwapStyle(1); task.wait(0.5)
+    end
+    if CurrentStand ~= PreBossStand then
+        SwapStand(1); task.wait(0.5)
+    end
+    if CurrentStyle ~= PreBossStyle or CurrentStand ~= PreBossStand then
+        DetectLoadoutFromInventory()
+    end
+
+    WorldBossPriority = false
+end
+
+-- ================================================================
+-- [[ STORY HELPERS ]]
+-- ================================================================
+local function IsBokuNoRhythm()
+    local btn = SafeGet(StoryCtx.Root(), "ButtonContainer","StoryEncounterBtn")
+    if not btn then return false end
+    for _, obj in ipairs({ btn, table.unpack(btn:GetDescendants()) }) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            if (obj.Text or ""):find("Boku no Rhythm") then return true end
+        end
+    end
+    return false
+end
+
+local function TryPrestige()
+    FirePrestige()
+    task.wait(ACTION_CD)
+end
+
+-- ================================================================
+-- [[ AUTO STORY LOOP ]]
+-- ================================================================
+local function RunStoryLoop()
+    DetectLoadoutFromInventory()
+    EnsureULFForStory()
+    TryFleeFromDungeon()
+    task.wait(0.5)
+
+    if IsInStoryBattle() then
+        -- warn("[Story] Already in story battle — finishing first.")
+        RunBattleLoop(StoryCtx, function() return StoryEnabled end, IsInStoryBattle)
+        task.wait(ACTION_CD)
+    end
+
+    if PrestigeEnabled then
+        TryPrestige()
+        task.wait(ACTION_CD)
+    end
+
+    task.spawn(RunWorldBossScanner)
+
+    while StoryEnabled and not ScriptKilled do
+        if WorldBossPriority then
+            -- warn("[Story] World boss priority — finishing open battle first.")
+            if IsInStoryBattle() then
+                RunBattleLoop(StoryCtx, function() return StoryEnabled end, IsInStoryBattle)
+                task.wait(ACTION_CD)
+            end
+            RunWorldBossFight()
+            task.wait(ACTION_CD)
+
+        elseif PrestigeEnabled and IsBokuNoRhythm() then
+            -- warn("[Story] Boku no Rhythm — Prestiging.")
+            TryPrestige()
+            task.wait(ACTION_CD)
+
+        else
+            CombatAction:FireServer("EngageStory")
+            task.wait(ACTION_CD)
+            RunBattleLoop(StoryCtx, function() return StoryEnabled end, IsInStoryBattle)
+            task.wait(ACTION_CD)
+        end
+
+        task.wait(ACTION_CD)
+    end
+end
+
+-- ================================================================
+-- [[ AUTO DUNGEON LOOP ]]
+-- ================================================================
+local function RunDungeonLoop()
+    DetectLoadoutFromInventory()
+
+    if IsInStoryBattle() then
+        -- warn("[Dungeon] In story battle — fleeing.")
+        StoryUseSkill("Flee")
+        task.wait(1)
+    end
+
+    while DungeonEnabled and not ScriptKilled do
+        StartDungeon()
+        task.wait(ACTION_CD)
+        local waited = 0
+        while not IsInDungeonBattle() and waited < 5 do
+            task.wait(0.2); waited += 0.2
+        end
+        if IsInDungeonBattle() then
+            RunBattleLoop(DungeonCtx, function() return DungeonEnabled end, IsInDungeonBattle)
+        end
+        task.wait(ACTION_CD)
+    end
+end
+
+-- ================================================================
+-- [[ BUTTON LOGIC ]]
+-- ================================================================
+PrestigeBtn.MouseButton1Click:Connect(function()
+    PrestigeEnabled = not PrestigeEnabled
+    UpdatePrestigeVisuals()
 end)
 
-btnJ.MouseButton1Click:Connect(function()
-	if looping then return end
-	mode = "J"
-	updateModeButtons()
+StoryBtn.MouseButton1Click:Connect(function()
+    if ScriptKilled or DungeonEnabled then return end
+    StoryEnabled = not StoryEnabled
+    if StoryEnabled then
+        StoryBtn.Text = "Auto Story: ON"
+        StoryBtn.BackgroundColor3 = Color3.fromRGB(30,70,40)
+        StoryBtn.TextColor3 = Color3.fromRGB(120,255,160)
+        LockButton(DungeonBtn)
+        task.spawn(RunStoryLoop)
+    else
+        StoryEnabled      = false
+        WorldBossPriority = false
+        StoryBtn.Text = "Auto Story"
+        StoryBtn.BackgroundColor3 = Color3.fromRGB(45,45,70)
+        StoryBtn.TextColor3 = Color3.fromRGB(180,180,255)
+        UnlockButton(DungeonBtn)
+    end
 end)
 
-btnBoth.MouseButton1Click:Connect(function()
-	if looping then return end
-	mode = "BOTH"
-	updateModeButtons()
+DungeonBtn.MouseButton1Click:Connect(function()
+    if ScriptKilled or StoryEnabled then return end
+    DungeonEnabled = not DungeonEnabled
+    if DungeonEnabled then
+        DungeonBtn.Text = "Auto Dungeon: ON"
+        DungeonBtn.BackgroundColor3 = Color3.fromRGB(30,70,40)
+        DungeonBtn.TextColor3 = Color3.fromRGB(120,255,160)
+        LockButton(StoryBtn)
+        task.spawn(RunDungeonLoop)
+    else
+        DungeonBtn.Text = "Auto Dungeon"
+        DungeonBtn.BackgroundColor3 = Color3.fromRGB(45,45,70)
+        DungeonBtn.TextColor3 = Color3.fromRGB(180,180,255)
+        UnlockButton(StoryBtn)
+    end
 end)
 
-button.MouseButton1Click:Connect(toggle)
-trashBtn.MouseButton1Click:Connect(destroyAll)
-
-trashBtn.MouseEnter:Connect(function()
-	TweenService:Create(trashBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(60, 25, 28) }):Play()
-end)
-trashBtn.MouseLeave:Connect(function()
-	TweenService:Create(trashBtn, TweenInfo.new(0.1), { BackgroundColor3 = Color3.fromRGB(35, 20, 22) }):Play()
-end)
-
-button.MouseEnter:Connect(function()
-	TweenService:Create(button, TweenInfo.new(0.1), {
-		BackgroundColor3 = looping and Color3.fromRGB(120, 35, 48) or Color3.fromRGB(80, 68, 135)
-	}):Play()
-end)
-button.MouseLeave:Connect(function()
-	TweenService:Create(button, TweenInfo.new(0.1), {
-		BackgroundColor3 = looping and Color3.fromRGB(90, 25, 35) or Color3.fromRGB(60, 50, 100)
-	}):Play()
+StandSwapBtn.MouseButton1Click:Connect(function()
+    if IsInStoryBattle() then
+        StoryUseSkill("Flee"); task.wait(1)
+    elseif IsInDungeonBattle() then
+        TryFleeFromDungeon(); task.wait(0.5)
+    end
+    SwapStand(1); task.wait(0.3)
+    DetectLoadoutFromInventory()
 end)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == TOGGLE_KEY then
-		toggle()
-	elseif input.KeyCode == DESTROY_KEY then
-		destroyAll()
-	end
+StyleSwapBtn.MouseButton1Click:Connect(function()
+    if IsInStoryBattle() then
+        StoryUseSkill("Flee"); task.wait(1)
+    elseif IsInDungeonBattle() then
+        TryFleeFromDungeon(); task.wait(0.5)
+    end
+    SwapStyle(1); task.wait(0.3)
+    DetectLoadoutFromInventory()
 end)
 
-updateModeButtons()
-print("[TeleportLoop] Loaded — K: toggle | ': destroy | select C / J / BOTH")
+KillBtn.MouseButton1Click:Connect(function()
+    StoryEnabled      = false
+    DungeonEnabled    = false
+    WorldBossPriority = false
+    KillScript()
+    task.wait(ACTION_CD)
+    ScreenGui:Destroy()
+end)
+
+-- ================================================================
+-- [[ INIT ]]
+-- ================================================================
+task.spawn(DetectLoadoutFromInventory)
+
+-- print("[AutoJJBI] Script loaded. GUI ready.")
