@@ -85,6 +85,50 @@ local DUNGEON_LOG_PATH = {
     "CombatMainFrame","ContentContainer","ChatboxArea","ChatScroll","LogText"
 }
 
+local STAND_STORAGE_PATH = {
+    "JJBIMenu","MainFrame","ContentContainer","InventoryFrame",
+    "MainPanel","InnerContent","TabContainer","StandTabContent",
+    "StandMidRow","StandStorageCard","StorageContainer"
+}
+
+-- ================================================================
+-- [[ STAND SLOT SCANNER ]]
+-- Walks StorageContainer, skips UIListLayout and Locked slots
+-- Returns list of { name, slot } where slot is the swap arg
+-- ================================================================
+local function ScanStandSlots()
+    local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
+    if not container then return {} end
+
+    local slots = {}
+    local slotIndex = 0  -- tracks actual slot number (ignoring UIListLayout)
+
+    for _, child in ipairs(container:GetChildren()) do
+        if child:IsA("Frame") then
+            slotIndex += 1
+            local nameLabel = child:FindFirstChild("NameLabel")
+            local name = nameLabel and (nameLabel.Text or "") or ""
+            if not name:find("Locked") and name ~= "" then
+                table.insert(slots, { name = name, slot = slotIndex })
+            end
+        end
+        -- UIListLayout is not a Frame so it's naturally skipped
+    end
+
+    return slots
+end
+
+-- Find which slot number contains a stand matching the target name
+local function FindStandSlot(targetName)
+    local slots = ScanStandSlots()
+    for _, entry in ipairs(slots) do
+        if entry.name:find(targetName) then
+            return entry.slot
+        end
+    end
+    return nil
+end
+
 -- ================================================================
 -- [[ LOADOUT DEFINITIONS ]]
 -- ================================================================
@@ -186,6 +230,23 @@ InfoStrip.BackgroundColor3 = Color3.fromRGB(24, 24, 36)
 InfoStrip.BorderSizePixel = 0
 InfoStrip.Parent = MainFrame
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,5); c.Parent = InfoStrip end
+
+-- Stand dropdown panel — spawns to the right of the GUI
+local StandDropdown = Instance.new("Frame")
+StandDropdown.Name = "StandDropdown"
+StandDropdown.Size = UDim2.new(0, 160, 0, 0)
+StandDropdown.Position = UDim2.new(1, 6, 0, 0)
+StandDropdown.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+StandDropdown.BorderSizePixel = 0
+StandDropdown.Visible = false
+StandDropdown.ZIndex = 10
+StandDropdown.ClipsDescendants = true
+StandDropdown.Parent = InfoStrip
+do
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = StandDropdown
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(80,80,120); s.Thickness = 1; s.Parent = StandDropdown
+    local l = Instance.new("UIListLayout"); l.SortOrder = Enum.SortOrder.LayoutOrder; l.Padding = UDim.new(0,2); l.Parent = StandDropdown
+end
 
 local function MakeInfoRow(yOffset, defaultText, labelColor)
     local lbl = Instance.new("TextLabel")
@@ -300,6 +361,69 @@ end
 
 local function LockButton(btn)   btn.Active = false; ApplyDisabledOverlay(btn) end
 local function UnlockButton(btn) btn.Active = true;  RemoveDisabledOverlay(btn) end
+
+-- ================================================================
+-- [[ DROPDOWN LOGIC ]]
+-- ================================================================
+local DropdownOpen = false
+
+local function CloseDropdown()
+    DropdownOpen = false
+    StandDropdown.Visible = false
+    -- Clear old entries
+    for _, child in ipairs(StandDropdown:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+end
+
+local function OpenStandDropdown()
+    if DropdownOpen then CloseDropdown(); return end
+
+    local slots = ScanStandSlots()
+    if #slots == 0 then return end
+
+    -- Clear old entries
+    for _, child in ipairs(StandDropdown:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    local ENTRY_HEIGHT = 22
+    local PADDING      = 2
+
+    for i, entry in ipairs(slots) do
+        local entryBtn = Instance.new("TextButton")
+        entryBtn.Size = UDim2.new(1, -8, 0, ENTRY_HEIGHT)
+        entryBtn.BackgroundColor3 = Color3.fromRGB(32, 32, 48)
+        entryBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+        entryBtn.Text = entry.name
+        entryBtn.TextSize = 10
+        entryBtn.Font = Enum.Font.Gotham
+        entryBtn.BorderSizePixel = 0
+        entryBtn.LayoutOrder = i
+        entryBtn.ZIndex = 11
+        entryBtn.Parent = StandDropdown
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn end
+
+        local slotNum = entry.slot
+        entryBtn.MouseButton1Click:Connect(function()
+            if IsInStoryBattle() then
+                StoryUseSkill("Flee"); task.wait(1)
+            elseif IsInDungeonBattle() then
+                TryFleeFromDungeon(); task.wait(0.5)
+            end
+            SwapStand(slotNum)
+            task.wait(0.3)
+            DetectLoadoutFromInventory()
+            CloseDropdown()
+        end)
+    end
+
+    -- Resize dropdown to fit entries
+    local totalHeight = (#slots * (ENTRY_HEIGHT + PADDING)) + 6
+    StandDropdown.Size = UDim2.new(0, 160, 0, totalHeight)
+    StandDropdown.Visible = true
+    DropdownOpen = true
+end
 
 -- ================================================================
 -- [[ STATE ]]
@@ -497,17 +621,64 @@ local function ConfirmLoadoutInCombat(ctx)
     UpdateLoadoutLabels()
 end
 
-local function EnsureULFForStory()
-    if CurrentStyle == "ULF" then return end
-    -- warn("[Story] Style is not ULF — swapping.")
+-- ================================================================
+-- [[ LOADOUT ENFORCEMENT ]]
+-- ================================================================
+local function FleeAnyActiveBattle()
+    if IsInStoryBattle() then
+        StoryUseSkill("Flee")
+        task.wait(1)
+    elseif IsInDungeonBattle() then
+        TryFleeFromDungeon()
+        task.wait(0.5)
+    end
+end
+
+local function EnsureStyle(targetStyle)
+    if CurrentStyle == targetStyle then return end
+    FleeAnyActiveBattle()
     SwapStyle(1)
     local waited = 0
     while waited < 5 do
         task.wait(0.3); waited += 0.3
         DetectLoadoutFromInventory()
-        if CurrentStyle == "ULF" then return end
+        if CurrentStyle == targetStyle then return end
     end
-    -- warn("[Story] ULF swap timed out — proceeding.")
+end
+
+-- Smart stand swap — scans slots to find the correct slot number
+local function EnsureStand(targetStand)
+    if CurrentStand == targetStand then return end
+    local slot = FindStandSlot(targetStand)
+    if not slot then return end  -- stand not found in any slot
+    FleeAnyActiveBattle()
+    SwapStand(slot)
+    local waited = 0
+    while waited < 5 do
+        task.wait(0.3); waited += 0.3
+        DetectLoadoutFromInventory()
+        if CurrentStand == targetStand then return end
+    end
+end
+
+local function EnforceStoryLoadout()
+    if not IsInStoryBattle() then
+        FleeAnyActiveBattle()
+    end
+    DetectLoadoutFromInventory()
+    if PrestigeEnabled then
+        EnsureStand("Tusk Act 4")
+    end
+    EnsureStyle("ULF")
+end
+
+local function EnforceDungeonLoadout()
+    if not IsInDungeonBattle() then
+        FleeAnyActiveBattle()
+    end
+    DetectLoadoutFromInventory()
+    EnsureStand("Tusk Act 4")
+    EnsureStyle("ULF")
 end
 
 -- ================================================================
@@ -791,10 +962,8 @@ end
 -- [[ WORLD BOSS SCANNER ]]
 -- ================================================================
 local function RunWorldBossScanner()
-    -- Check immediately on start in case a boss is already available
     local engageText = GetEngageBtnText()
     if not engageText:find("ENGAGE BOSS") then
-        -- No boss up yet — wait for the timer
         WaitForBossTimer()
     end
 
@@ -830,7 +999,6 @@ local function RunWorldBossFight()
     PreBossStyle = CurrentStyle
 
     -- If KOU, swap to Shrine for optimal bleed stacking
-    -- (KOU has 10% passive burn chance making Melting Overdrive redundant)
     if CurrentStand == "King of U" and CurrentStyle ~= "Shrine" then
         SwapStyle(1)
         local waited = 0
@@ -899,7 +1067,8 @@ local function RunWorldBossFight()
         SwapStyle(1); task.wait(0.5)
     end
     if CurrentStand ~= PreBossStand then
-        SwapStand(1); task.wait(0.5)
+        local slot = FindStandSlot(PreBossStand)
+        if slot then SwapStand(slot); task.wait(0.5) end
     end
     if CurrentStyle ~= PreBossStyle or CurrentStand ~= PreBossStand then
         DetectLoadoutFromInventory()
@@ -931,8 +1100,7 @@ end
 -- [[ AUTO STORY LOOP ]]
 -- ================================================================
 local function RunStoryLoop()
-    DetectLoadoutFromInventory()
-    EnsureULFForStory()
+    EnforceStoryLoadout()
     TryFleeFromDungeon()
     task.wait(0.5)
 
@@ -979,20 +1147,16 @@ end
 -- [[ AUTO DUNGEON LOOP ]]
 -- ================================================================
 local function RunDungeonLoop()
-    DetectLoadoutFromInventory()
-
-    if IsInStoryBattle() then
-        -- warn("[Dungeon] In story battle — fleeing.")
-        StoryUseSkill("Flee")
-        task.wait(1)
-    end
+    EnforceDungeonLoadout()
 
     while DungeonEnabled and not ScriptKilled do
-        StartDungeon()
-        task.wait(ACTION_CD)
-        local waited = 0
-        while not IsInDungeonBattle() and waited < 5 do
-            task.wait(0.2); waited += 0.2
+        if not IsInDungeonBattle() then
+            StartDungeon()
+            task.wait(ACTION_CD)
+            local waited = 0
+            while not IsInDungeonBattle() and waited < 5 do
+                task.wait(0.2); waited += 0.2
+            end
         end
         if IsInDungeonBattle() then
             RunBattleLoop(DungeonCtx, function() return DungeonEnabled end, IsInDungeonBattle)
@@ -1045,16 +1209,12 @@ DungeonBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Stand swap button opens dropdown
 StandSwapBtn.MouseButton1Click:Connect(function()
-    if IsInStoryBattle() then
-        StoryUseSkill("Flee"); task.wait(1)
-    elseif IsInDungeonBattle() then
-        TryFleeFromDungeon(); task.wait(0.5)
-    end
-    SwapStand(1); task.wait(0.3)
-    DetectLoadoutFromInventory()
+    OpenStandDropdown()
 end)
 
+-- Style swap button — still slot 1 only
 StyleSwapBtn.MouseButton1Click:Connect(function()
     if IsInStoryBattle() then
         StoryUseSkill("Flee"); task.wait(1)
@@ -1069,6 +1229,7 @@ KillBtn.MouseButton1Click:Connect(function()
     StoryEnabled      = false
     DungeonEnabled    = false
     WorldBossPriority = false
+    CloseDropdown()
     KillScript()
     task.wait(ACTION_CD)
     ScreenGui:Destroy()
