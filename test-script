@@ -93,32 +93,35 @@ local STAND_STORAGE_PATH = {
 
 -- ================================================================
 -- [[ STAND SLOT SCANNER ]]
--- Walks StorageContainer, skips UIListLayout and Locked slots
--- Returns list of { name, slot } where slot is the swap arg
 -- ================================================================
+local function StripRichText(text)
+    local clean = text:gsub("<[^>]+>", "")
+    clean = clean:gsub("%s+", " ")
+    return clean:match("^%s*(.-)%s*$")
+end
+
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
     if not container then return {} end
 
     local slots = {}
-    local slotIndex = 0  -- tracks actual slot number (ignoring UIListLayout)
+    local slotIndex = 0
 
     for _, child in ipairs(container:GetChildren()) do
         if child:IsA("Frame") then
             slotIndex += 1
             local nameLabel = child:FindFirstChild("NameLabel")
-            local name = nameLabel and (nameLabel.Text or "") or ""
+            local rawText = nameLabel and (nameLabel.Text or "") or ""
+            local name = StripRichText(rawText)
             if not name:find("Locked") and name ~= "" then
                 table.insert(slots, { name = name, slot = slotIndex })
             end
         end
-        -- UIListLayout is not a Frame so it's naturally skipped
     end
 
     return slots
 end
 
--- Find which slot number contains a stand matching the target name
 local function FindStandSlot(targetName)
     local slots = ScanStandSlots()
     for _, entry in ipairs(slots) do
@@ -231,7 +234,7 @@ InfoStrip.BorderSizePixel = 0
 InfoStrip.Parent = MainFrame
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,5); c.Parent = InfoStrip end
 
--- Stand dropdown panel — spawns to the right of the GUI
+-- Stand dropdown panel
 local StandDropdown = Instance.new("Frame")
 StandDropdown.Name = "StandDropdown"
 StandDropdown.Size = UDim2.new(0, 160, 0, 0)
@@ -370,7 +373,6 @@ local DropdownOpen = false
 local function CloseDropdown()
     DropdownOpen = false
     StandDropdown.Visible = false
-    -- Clear old entries
     for _, child in ipairs(StandDropdown:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
     end
@@ -382,13 +384,19 @@ local function OpenStandDropdown()
     local slots = ScanStandSlots()
     if #slots == 0 then return end
 
-    -- Clear old entries
     for _, child in ipairs(StandDropdown:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
     end
 
     local ENTRY_HEIGHT = 22
     local PADDING      = 2
+    local MIN_WIDTH    = 160
+
+    local maxLen = MIN_WIDTH
+    for _, entry in ipairs(slots) do
+        local estWidth = #entry.name * 7 + 16
+        if estWidth > maxLen then maxLen = estWidth end
+    end
 
     for i, entry in ipairs(slots) do
         local entryBtn = Instance.new("TextButton")
@@ -399,10 +407,15 @@ local function OpenStandDropdown()
         entryBtn.TextSize = 10
         entryBtn.Font = Enum.Font.Gotham
         entryBtn.BorderSizePixel = 0
+        entryBtn.TextXAlignment = Enum.TextXAlignment.Left
         entryBtn.LayoutOrder = i
         entryBtn.ZIndex = 11
         entryBtn.Parent = StandDropdown
-        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn end
+        do
+            local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn
+            local p = Instance.new("UIPadding")
+            p.PaddingLeft = UDim.new(0,6); p.Parent = entryBtn
+        end
 
         local slotNum = entry.slot
         entryBtn.MouseButton1Click:Connect(function()
@@ -418,9 +431,8 @@ local function OpenStandDropdown()
         end)
     end
 
-    -- Resize dropdown to fit entries
     local totalHeight = (#slots * (ENTRY_HEIGHT + PADDING)) + 6
-    StandDropdown.Size = UDim2.new(0, 160, 0, totalHeight)
+    StandDropdown.Size = UDim2.new(0, maxLen, 0, totalHeight)
     StandDropdown.Visible = true
     DropdownOpen = true
 end
@@ -646,11 +658,10 @@ local function EnsureStyle(targetStyle)
     end
 end
 
--- Smart stand swap — scans slots to find the correct slot number
 local function EnsureStand(targetStand)
     if CurrentStand == targetStand then return end
     local slot = FindStandSlot(targetStand)
-    if not slot then return end  -- stand not found in any slot
+    if not slot then return end
     FleeAnyActiveBattle()
     SwapStand(slot)
     local waited = 0
@@ -1209,12 +1220,10 @@ DungeonBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Stand swap button opens dropdown
 StandSwapBtn.MouseButton1Click:Connect(function()
     OpenStandDropdown()
 end)
 
--- Style swap button — still slot 1 only
 StyleSwapBtn.MouseButton1Click:Connect(function()
     if IsInStoryBattle() then
         StoryUseSkill("Flee"); task.wait(1)
