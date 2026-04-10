@@ -114,7 +114,6 @@ local function ScanStandSlots()
             local rawText = nameLabel and (nameLabel.Text or "") or ""
             local name = StripRichText(rawText)
             if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
-                -- Child 1 = Swap 1, everything after UIListLayout (child 2) = index - 1
                 local swapNum = i == 1 and 1 or i - 1
                 table.insert(slots, { name = name, slot = swapNum })
             end
@@ -366,82 +365,6 @@ end
 
 local function LockButton(btn)   btn.Active = false; ApplyDisabledOverlay(btn) end
 local function UnlockButton(btn) btn.Active = true;  RemoveDisabledOverlay(btn) end
-
--- ================================================================
--- [[ DROPDOWN LOGIC ]]
--- ================================================================
-local DropdownOpen = false
-
-local function CloseDropdown()
-    DropdownOpen = false
-    StandDropdown.Visible = false
-    for _, child in ipairs(StandDropdown:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-end
-
-local function OpenStandDropdown()
-    if DropdownOpen then CloseDropdown(); return end
-
-    local slots = ScanStandSlots()
-    if #slots == 0 then return end
-
-    for _, child in ipairs(StandDropdown:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-
-    -- Capture remote locally to avoid executor closure upvalue issues
-    local standAction = ReplicatedStorage:WaitForChild("Network"):WaitForChild("StandStorageAction")
-
-    local ENTRY_HEIGHT = 22
-    local PADDING      = 2
-    local MIN_WIDTH    = 160
-
-    local maxLen = MIN_WIDTH
-    for _, entry in ipairs(slots) do
-        local estWidth = #entry.name * 7 + 16
-        if estWidth > maxLen then maxLen = estWidth end
-    end
-
-    for i, entry in ipairs(slots) do
-        local entryBtn = Instance.new("TextButton")
-        entryBtn.Size = UDim2.new(1, -8, 0, ENTRY_HEIGHT)
-        entryBtn.BackgroundColor3 = Color3.fromRGB(32, 32, 48)
-        entryBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
-        entryBtn.Text = entry.name
-        entryBtn.TextSize = 10
-        entryBtn.Font = Enum.Font.Gotham
-        entryBtn.BorderSizePixel = 0
-        entryBtn.TextXAlignment = Enum.TextXAlignment.Left
-        entryBtn.LayoutOrder = i
-        entryBtn.ZIndex = 11
-        entryBtn.Parent = StandDropdown
-        do
-            local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn
-            local p = Instance.new("UIPadding")
-            p.PaddingLeft = UDim.new(0,6); p.Parent = entryBtn
-        end
-
-        local slotNum = entry.slot
-        entryBtn.MouseButton1Click:Connect(function()
-            if not slotNum then return end
-            if IsInStoryBattle() then
-                StoryUseSkill("Flee"); task.wait(1)
-            elseif IsInDungeonBattle() then
-                TryFleeFromDungeon(); task.wait(0.5)
-            end
-            standAction:FireServer("Swap", slotNum)
-            task.wait(0.3)
-            DetectLoadoutFromInventory()
-            CloseDropdown()
-        end)
-    end
-
-    local totalHeight = (#slots * (ENTRY_HEIGHT + PADDING)) + 6
-    StandDropdown.Size = UDim2.new(0, maxLen, 0, totalHeight)
-    StandDropdown.Visible = true
-    DropdownOpen = true
-end
 
 -- ================================================================
 -- [[ STATE ]]
@@ -696,6 +619,81 @@ local function EnforceDungeonLoadout()
     DetectLoadoutFromInventory()
     EnsureStand("Tusk Act 4")
     EnsureStyle("ULF")
+end
+
+-- ================================================================
+-- [[ DROPDOWN LOGIC ]]
+-- Placed here so all combat read functions are defined above it
+-- and accessible inside the click handler closures
+-- ================================================================
+local DropdownOpen = false
+
+local function CloseDropdown()
+    DropdownOpen = false
+    StandDropdown.Visible = false
+    for _, child in ipairs(StandDropdown:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+end
+
+local function OpenStandDropdown()
+    if DropdownOpen then CloseDropdown(); return end
+
+    local slots = ScanStandSlots()
+    if #slots == 0 then return end
+
+    for _, child in ipairs(StandDropdown:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    local ENTRY_HEIGHT = 22
+    local PADDING      = 2
+    local MIN_WIDTH    = 160
+
+    local maxLen = MIN_WIDTH
+    for _, entry in ipairs(slots) do
+        local estWidth = #entry.name * 7 + 16
+        if estWidth > maxLen then maxLen = estWidth end
+    end
+
+    for i, entry in ipairs(slots) do
+        local entryBtn = Instance.new("TextButton")
+        entryBtn.Size = UDim2.new(1, -8, 0, ENTRY_HEIGHT)
+        entryBtn.BackgroundColor3 = Color3.fromRGB(32, 32, 48)
+        entryBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+        entryBtn.Text = entry.name
+        entryBtn.TextSize = 10
+        entryBtn.Font = Enum.Font.Gotham
+        entryBtn.BorderSizePixel = 0
+        entryBtn.TextXAlignment = Enum.TextXAlignment.Left
+        entryBtn.LayoutOrder = i
+        entryBtn.ZIndex = 11
+        entryBtn.Parent = StandDropdown
+        do
+            local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn
+            local p = Instance.new("UIPadding")
+            p.PaddingLeft = UDim.new(0,6); p.Parent = entryBtn
+        end
+
+        local slotNum = entry.slot
+        entryBtn.MouseButton1Click:Connect(function()
+            if not slotNum then return end
+            if IsInStoryBattle() then
+                StoryUseSkill("Flee"); task.wait(1)
+            elseif IsInDungeonBattle() then
+                TryFleeFromDungeon(); task.wait(0.5)
+            end
+            StandStorageAction:FireServer("Swap", slotNum)
+            task.wait(0.3)
+            DetectLoadoutFromInventory()
+            CloseDropdown()
+        end)
+    end
+
+    local totalHeight = (#slots * (ENTRY_HEIGHT + PADDING)) + 6
+    StandDropdown.Size = UDim2.new(0, maxLen, 0, totalHeight)
+    StandDropdown.Visible = true
+    DropdownOpen = true
 end
 
 -- ================================================================
@@ -1015,7 +1013,6 @@ local function RunWorldBossFight()
     PreBossStand = CurrentStand
     PreBossStyle = CurrentStyle
 
-    -- If KOU, swap to Shrine for optimal bleed stacking
     if CurrentStand == "King of U" and CurrentStyle ~= "Shrine" then
         SwapStyle(1)
         local waited = 0
