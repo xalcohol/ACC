@@ -91,10 +91,10 @@ local STAND_STORAGE_PATH = {
 }
 
 -- ================================================================
--- [[ STAND SLOT SCANNER ]]
--- Child 1 = StorageSlotTemplate = Swap 1 (no offset)
--- Child 2 = UIListLayout (skipped, not a Frame)
--- Child 3+ = StorageSlotTemplate = Swap (i - 1)
+-- [[ STAND NAME FORMATTING ]]
+-- Two formats:
+--   Dropdown  -> full name, full trait brackets e.g. "Tusk Act 4 [LETHAL] [OVERWHELMING]"
+--   Stand label -> short name, initial traits e.g. "Tusk Act 4 [L+O]" / "KCR [F]"
 -- ================================================================
 local function StripRichText(text)
     local clean = text:gsub("<[^>]+>", "")
@@ -102,34 +102,58 @@ local function StripRichText(text)
     return clean:match("^%s*(.-)%s*$")
 end
 
--- Strips "S#: " prefix from slot name labels
 local function StripSlotPrefix(name)
     return name:match("^S%d+:%s*(.+)$") or name
 end
 
--- Condenses trait brackets to initials
--- "[LETHAL] & [OVERWHELMING]" -> "[L+O]"
--- "[FLAMING]" -> "[F]"
-local function ShortenTraits(name)
-    -- Collect all trait words inside brackets
-    local traits = {}
-    for trait in name:gmatch("%[([A-Z]+)%]") do
-        table.insert(traits, trait:sub(1,1))
-    end
-    if #traits == 0 then return name end
-    -- Strip all bracket groups and connectors from name
-    local base = name:gsub("%s*%[%u+%]", ""):gsub("%s*&%s*", ""):match("^%s*(.-)%s*$")
-    local traitStr = "[" .. table.concat(traits, "+") .. "]"
-    return base .. " " .. traitStr
-end
-
-local function FormatStandName(rawText)
+-- Full name for dropdown — strips slot prefix, keeps full [TRAIT] brackets
+local function FormatDropdownName(rawText)
     local clean = StripRichText(rawText)
     clean = StripSlotPrefix(clean)
-    clean = ShortenTraits(clean)
-    return clean
+    return clean:match("^%s*(.-)%s*$")
 end
 
+-- Short name for Stand: label — abbreviated stand + initial traits
+local STAND_ABBREV = {
+    ["King Crimson Requiem"] = "KCR",
+    ["Tusk Act 4"]           = "Tusk Act 4",
+    ["King of U"]            = "King of U",
+}
+
+local function FormatStandLabel(rawText)
+    local clean = StripRichText(rawText)
+    clean = StripSlotPrefix(clean)
+    clean = clean:match("^%s*(.-)%s*$")
+
+    -- Collect trait initials from brackets
+    local traits = {}
+    for trait in clean:gmatch("%[([A-Z]+)%]") do
+        table.insert(traits, trait:sub(1,1))
+    end
+
+    -- Strip all bracket groups and connectors to get base name
+    local base = clean:gsub("%s*%[%u+%]", ""):gsub("%s*&%s*", ""):match("^%s*(.-)%s*$")
+
+    -- Apply abbreviations
+    for full, short in pairs(STAND_ABBREV) do
+        if base:find(full, 1, true) then
+            base = short
+            break
+        end
+    end
+
+    if #traits > 0 then
+        return base .. " [" .. table.concat(traits, "+") .. "]"
+    end
+    return base
+end
+
+-- ================================================================
+-- [[ STAND SLOT SCANNER ]]
+-- Child 1 = StorageSlotTemplate = Swap 1 (no offset)
+-- Child 2 = UIListLayout (skipped, not a Frame)
+-- Child 3+ = StorageSlotTemplate = Swap (i - 1)
+-- ================================================================
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
     if not container then return {} end
@@ -140,10 +164,10 @@ local function ScanStandSlots()
         if child:IsA("Frame") then
             local nameLabel = child:FindFirstChild("NameLabel")
             local rawText = nameLabel and (nameLabel.Text or "") or ""
-            local name = FormatStandName(rawText)
+            local name = FormatDropdownName(rawText)
             if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
                 local swapNum = i == 1 and 1 or i - 1
-                table.insert(slots, { name = name, slot = swapNum })
+                table.insert(slots, { name = name, slot = swapNum, raw = rawText })
             end
         end
     end
@@ -263,11 +287,11 @@ InfoStrip.BorderSizePixel = 0
 InfoStrip.Parent = MainFrame
 do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,5); c.Parent = InfoStrip end
 
--- Stand dropdown panel
+-- Stand dropdown panel — offset 4px from top so it doesn't hug the strip border
 local StandDropdown = Instance.new("Frame")
 StandDropdown.Name = "StandDropdown"
 StandDropdown.Size = UDim2.new(0, 160, 0, 0)
-StandDropdown.Position = UDim2.new(1, 6, 0, 0)
+StandDropdown.Position = UDim2.new(1, 6, 0, 4)
 StandDropdown.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
 StandDropdown.BorderSizePixel = 0
 StandDropdown.Visible = false
@@ -301,7 +325,7 @@ local function MakeInfoRow(yOffset, defaultText, labelColor)
     swapBtn.Position = UDim2.new(1, -28, 0, yOffset + 2)
     swapBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     swapBtn.TextColor3 = Color3.fromRGB(180, 180, 255)
-    swapBtn.Text = "="   -- three-bar menu indicator
+    swapBtn.Text = "="
     swapBtn.TextSize = 14
     swapBtn.Font = Enum.Font.GothamBold
     swapBtn.BorderSizePixel = 0
@@ -569,9 +593,9 @@ local function DetectLoadoutFromInventory()
     end
     if standNode then
         local t = standNode.Text or ""
-        if     t:find("TUSK ACT 4") then CurrentStand = "Tusk Act 4"
+        if     t:find("TUSK ACT 4") then CurrentStand = FormatStandLabel(t)
         elseif t:find("KING OF U")  then CurrentStand = "King of U"
-        else                             CurrentStand = "Unknown" end
+        else                             CurrentStand = FormatStandLabel(t) end
     end
     UpdateLoadoutLabels()
     -- print(string.format("[AutoJJBI] Loadout — Stand: %s | Style: %s", CurrentStand, CurrentStyle))
