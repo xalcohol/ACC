@@ -116,7 +116,6 @@ local function ScanStandSlots()
             local nameLabel = child:FindFirstChild("NameLabel")
             local rawText = nameLabel and (nameLabel.Text or "") or ""
             local name = StripRichText(rawText)
-            print(string.format("[StandScan] Frame %d: raw='%s' clean='%s'", slotIndex, rawText, name))
             if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
                 table.insert(slots, { name = name, slot = slotIndex })
             end
@@ -133,7 +132,6 @@ local function FindStandSlot(targetName)
             return entry.slot
         end
     end
-    print("[StandScan] Could not find slot for: " .. tostring(targetName))
     return nil
 end
 
@@ -387,10 +385,7 @@ local function OpenStandDropdown()
     if DropdownOpen then CloseDropdown(); return end
 
     local slots = ScanStandSlots()
-    if #slots == 0 then
-        print("[StandScan] No slots found — dropdown empty.")
-        return
-    end
+    if #slots == 0 then return end
 
     for _, child in ipairs(StandDropdown:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
@@ -427,16 +422,14 @@ local function OpenStandDropdown()
 
         local slotNum = entry.slot
         entryBtn.MouseButton1Click:Connect(function()
-            if not slotNum then
-                print("[StandScan] slotNum is nil — aborting swap.")
-                return
-            end
+            if not slotNum then return end
             if IsInStoryBattle() then
                 StoryUseSkill("Flee"); task.wait(1)
             elseif IsInDungeonBattle() then
                 TryFleeFromDungeon(); task.wait(0.5)
             end
-            SwapStand(slotNum)
+            -- Fire directly to avoid any wrapper reference issues
+            StandStorageAction:FireServer("Swap", slotNum)
             task.wait(0.3)
             DetectLoadoutFromInventory()
             CloseDropdown()
@@ -675,7 +668,7 @@ local function EnsureStand(targetStand)
     local slot = FindStandSlot(targetStand)
     if not slot then return end
     FleeAnyActiveBattle()
-    SwapStand(slot)
+    StandStorageAction:FireServer("Swap", slot)
     local waited = 0
     while waited < 5 do
         task.wait(0.3); waited += 0.3
@@ -1091,7 +1084,10 @@ local function RunWorldBossFight()
     end
     if CurrentStand ~= PreBossStand then
         local slot = FindStandSlot(PreBossStand)
-        if slot then SwapStand(slot); task.wait(0.5) end
+        if slot then
+            StandStorageAction:FireServer("Swap", slot)
+            task.wait(0.5)
+        end
     end
     if CurrentStyle ~= PreBossStyle or CurrentStand ~= PreBossStand then
         DetectLoadoutFromInventory()
