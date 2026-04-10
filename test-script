@@ -102,7 +102,10 @@ end
 
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
-    if not container then return {} end
+    if not container then
+        print("[StandScan] StorageContainer not found.")
+        return {}
+    end
 
     local slots = {}
     local slotIndex = 0
@@ -113,7 +116,8 @@ local function ScanStandSlots()
             local nameLabel = child:FindFirstChild("NameLabel")
             local rawText = nameLabel and (nameLabel.Text or "") or ""
             local name = StripRichText(rawText)
-            if not name:find("Locked") and name ~= "" then
+            print(string.format("[StandScan] Frame %d: raw='%s' clean='%s'", slotIndex, rawText, name))
+            if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
                 table.insert(slots, { name = name, slot = slotIndex })
             end
         end
@@ -129,6 +133,7 @@ local function FindStandSlot(targetName)
             return entry.slot
         end
     end
+    print("[StandScan] Could not find slot for: " .. tostring(targetName))
     return nil
 end
 
@@ -382,7 +387,10 @@ local function OpenStandDropdown()
     if DropdownOpen then CloseDropdown(); return end
 
     local slots = ScanStandSlots()
-    if #slots == 0 then return end
+    if #slots == 0 then
+        print("[StandScan] No slots found — dropdown empty.")
+        return
+    end
 
     for _, child in ipairs(StandDropdown:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
@@ -419,6 +427,10 @@ local function OpenStandDropdown()
 
         local slotNum = entry.slot
         entryBtn.MouseButton1Click:Connect(function()
+            if not slotNum then
+                print("[StandScan] slotNum is nil — aborting swap.")
+                return
+            end
             if IsInStoryBattle() then
                 StoryUseSkill("Flee"); task.wait(1)
             elseif IsInDungeonBattle() then
