@@ -102,6 +102,34 @@ local function StripRichText(text)
     return clean:match("^%s*(.-)%s*$")
 end
 
+-- Strips "S#: " prefix from slot name labels
+local function StripSlotPrefix(name)
+    return name:match("^S%d+:%s*(.+)$") or name
+end
+
+-- Condenses trait brackets to initials
+-- "[LETHAL] & [OVERWHELMING]" -> "[L+O]"
+-- "[FLAMING]" -> "[F]"
+local function ShortenTraits(name)
+    -- Collect all trait words inside brackets
+    local traits = {}
+    for trait in name:gmatch("%[([A-Z]+)%]") do
+        table.insert(traits, trait:sub(1,1))
+    end
+    if #traits == 0 then return name end
+    -- Strip all bracket groups and connectors from name
+    local base = name:gsub("%s*%[%u+%]", ""):gsub("%s*&%s*", ""):match("^%s*(.-)%s*$")
+    local traitStr = "[" .. table.concat(traits, "+") .. "]"
+    return base .. " " .. traitStr
+end
+
+local function FormatStandName(rawText)
+    local clean = StripRichText(rawText)
+    clean = StripSlotPrefix(clean)
+    clean = ShortenTraits(clean)
+    return clean
+end
+
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
     if not container then return {} end
@@ -112,7 +140,7 @@ local function ScanStandSlots()
         if child:IsA("Frame") then
             local nameLabel = child:FindFirstChild("NameLabel")
             local rawText = nameLabel and (nameLabel.Text or "") or ""
-            local name = StripRichText(rawText)
+            local name = FormatStandName(rawText)
             if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
                 local swapNum = i == 1 and 1 or i - 1
                 table.insert(slots, { name = name, slot = swapNum })
@@ -249,7 +277,11 @@ StandDropdown.Parent = InfoStrip
 do
     local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,6); c.Parent = StandDropdown
     local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(80,80,120); s.Thickness = 1; s.Parent = StandDropdown
-    local l = Instance.new("UIListLayout"); l.SortOrder = Enum.SortOrder.LayoutOrder; l.Padding = UDim.new(0,2); l.Parent = StandDropdown
+    local l = Instance.new("UIListLayout")
+    l.SortOrder = Enum.SortOrder.LayoutOrder
+    l.Padding = UDim.new(0,2)
+    l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    l.Parent = StandDropdown
 end
 
 local function MakeInfoRow(yOffset, defaultText, labelColor)
@@ -269,8 +301,8 @@ local function MakeInfoRow(yOffset, defaultText, labelColor)
     swapBtn.Position = UDim2.new(1, -28, 0, yOffset + 2)
     swapBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
     swapBtn.TextColor3 = Color3.fromRGB(180, 180, 255)
-    swapBtn.Text = "R"
-    swapBtn.TextSize = 11
+    swapBtn.Text = "="   -- three-bar menu indicator
+    swapBtn.TextSize = 14
     swapBtn.Font = Enum.Font.GothamBold
     swapBtn.BorderSizePixel = 0
     swapBtn.Parent = InfoStrip
@@ -623,8 +655,7 @@ end
 
 -- ================================================================
 -- [[ DROPDOWN LOGIC ]]
--- Placed here so all combat read functions are defined above it
--- and accessible inside the click handler closures
+-- Placed after all combat reads so closures can reference them
 -- ================================================================
 local DropdownOpen = false
 
@@ -665,15 +696,11 @@ local function OpenStandDropdown()
         entryBtn.TextSize = 10
         entryBtn.Font = Enum.Font.Gotham
         entryBtn.BorderSizePixel = 0
-        entryBtn.TextXAlignment = Enum.TextXAlignment.Left
+        entryBtn.TextXAlignment = Enum.TextXAlignment.Center
         entryBtn.LayoutOrder = i
         entryBtn.ZIndex = 11
         entryBtn.Parent = StandDropdown
-        do
-            local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn
-            local p = Instance.new("UIPadding")
-            p.PaddingLeft = UDim.new(0,6); p.Parent = entryBtn
-        end
+        do local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,4); c.Parent = entryBtn end
 
         local slotNum = entry.slot
         entryBtn.MouseButton1Click:Connect(function()
