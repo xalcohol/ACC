@@ -24,7 +24,6 @@ local ACTION_CD = 0.2
 -- [[ FIRE HELPERS ]] --
 local function FirePrestige()    PrestigeEvent:FireServer()                          end
 local function SwapStyle(slot)   StandStorageAction:FireServer("SwapStyle", slot)    end
-local function SwapStand(slot)   StandStorageAction:FireServer("Swap", slot)         end
 local function StartDungeon()    DungeonAction:FireServer("StartDungeon", "Endless") end
 local function EngageWorldBoss() WorldBossAction:FireServer("Engage")                end
 
@@ -93,6 +92,9 @@ local STAND_STORAGE_PATH = {
 
 -- ================================================================
 -- [[ STAND SLOT SCANNER ]]
+-- Child 1 = StorageSlotTemplate = Swap 1 (no offset)
+-- Child 2 = UIListLayout (skipped, not a Frame)
+-- Child 3+ = StorageSlotTemplate = Swap (i - 1)
 -- ================================================================
 local function StripRichText(text)
     local clean = text:gsub("<[^>]+>", "")
@@ -102,22 +104,19 @@ end
 
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
-    if not container then
-        print("[StandScan] StorageContainer not found.")
-        return {}
-    end
+    if not container then return {} end
 
     local slots = {}
-    local slotIndex = 0
 
-    for _, child in ipairs(container:GetChildren()) do
+    for i, child in ipairs(container:GetChildren()) do
         if child:IsA("Frame") then
-            slotIndex += 1
             local nameLabel = child:FindFirstChild("NameLabel")
             local rawText = nameLabel and (nameLabel.Text or "") or ""
             local name = StripRichText(rawText)
             if name ~= "" and not name:find("Locked") and not name:find("^%s*$") then
-                table.insert(slots, { name = name, slot = slotIndex })
+                -- Child 1 = Swap 1, everything after UIListLayout (child 2) = index - 1
+                local swapNum = i == 1 and 1 or i - 1
+                table.insert(slots, { name = name, slot = swapNum })
             end
         end
     end
@@ -391,6 +390,9 @@ local function OpenStandDropdown()
         if child:IsA("TextButton") then child:Destroy() end
     end
 
+    -- Capture remote locally to avoid executor closure upvalue issues
+    local standAction = ReplicatedStorage:WaitForChild("Network"):WaitForChild("StandStorageAction")
+
     local ENTRY_HEIGHT = 22
     local PADDING      = 2
     local MIN_WIDTH    = 160
@@ -428,8 +430,7 @@ local function OpenStandDropdown()
             elseif IsInDungeonBattle() then
                 TryFleeFromDungeon(); task.wait(0.5)
             end
-            -- Fire directly to avoid any wrapper reference issues
-            StandStorageAction:FireServer("Swap", slotNum)
+            standAction:FireServer("Swap", slotNum)
             task.wait(0.3)
             DetectLoadoutFromInventory()
             CloseDropdown()
