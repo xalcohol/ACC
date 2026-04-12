@@ -295,10 +295,17 @@ end
 local function ShouldPrestigeNow()
     -- check enemy name first (works mid-combat)
     local enemyName = GetStoryEnemyName()
-    if PRESTIGE_ELIGIBLE_ENEMIES[enemyName] then return true end
-    -- check story button text (works between combats)
+    if enemyName ~= "" and PRESTIGE_ELIGIBLE_ENEMIES[enemyName] then return true end
+    -- check story button text with exact table lookup
     local storyName = GetCurrentStoryName()
-    if POST_PRESTIGE_STORIES[storyName] then return true end
+    if storyName ~= "" and POST_PRESTIGE_STORIES[storyName] then return true end
+    -- fallback: partial match scan in case of formatting differences
+    for name, _ in pairs(POST_PRESTIGE_STORIES) do
+        if storyName:find(name, 1, true) then return true end
+    end
+    for name, _ in pairs(PRESTIGE_ELIGIBLE_ENEMIES) do
+        if enemyName:find(name, 1, true) then return true end
+    end
     return false
 end
 
@@ -1622,13 +1629,20 @@ local function RunStoryBattleLoop(enabledFlag)
     StoryCtx.HasBlockedThisDip = false
     task.wait(0.5)
     ConfirmLoadoutInCombat(StoryCtx)
-    while enabledFlag() and not ScriptKilled and IsInStoryBattle() do
-        RunStoryCombatTick()
-        task.wait(ACTION_CD)
-        -- After each tick: if prestige mode just became relevant mid-chain, exit now
-        if PrestigeEnabled and ShouldPrestigeNow() and not IsInStoryBattle() then
+    while enabledFlag() and not ScriptKilled do
+        if not IsInStoryBattle() then
+            -- Combat just ended. If prestige should fire, do it NOW before
+            -- the game auto-engages the next story.
+            if PrestigeEnabled and ShouldPrestigeNow() then
+                FirePrestige()
+                task.wait(ACTION_CD)
+                return
+            end
+            -- Not prestiging, exit loop normally
             break
         end
+        RunStoryCombatTick()
+        task.wait(ACTION_CD)
     end
     StoryCtx.HasBlockedThisDip = false
 end
