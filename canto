@@ -233,9 +233,25 @@ local STORY_BTN_PATH = {
 -- ================================================================
 -- [[ ENEMY / STORY DETECTION ]]
 -- ================================================================
--- Enemies that use the Pucci priority config (all post-prestige + Pucci himself)
+-- Enemies that use the Pucci priority config
+-- Enrico Pucci + all post-prestige enemies EXCEPT Tooru (he has his own config)
 local PUCCI_CONFIG_ENEMIES = {
-    ["Enrico Pucci"]=true, ["Oyecomova"]=true, ["Pork Pie Hat Kid"]=true,
+    ["Enrico Pucci"]=true,
+    ["Oyecomova"]=true, ["Pork Pie Hat Kid"]=true,
+    ["Sandman"]=true, ["Eleven Men"]=true, ["Blackmore"]=true,
+    ["Ringo Roadagain"]=true, ["Wekapipo"]=true, ["Magenta Magenta"]=true,
+    ["Diego Brando"]=true, ["Funny Valentine"]=true, ["Ojiro Sasame"]=true,
+    ["Daiya Higashikata"]=true, ["Tsurugi Higashikata"]=true,
+    ["Yotsuyu Yagiyama"]=true, ["Aisho Dainenjiyama"]=true,
+    ["Tamaki Damo"]=true, ["Urban Guerrilla"]=true, ["Dolomite"]=true,
+    ["Jobin Higashikata"]=true,
+}
+
+-- All prestige-eligible enemies (Pucci config enemies + Tooru)
+-- Used only for prestige stage detection, not combat config selection
+local PRESTIGE_ELIGIBLE_ENEMIES = {
+    ["Enrico Pucci"]=true,
+    ["Oyecomova"]=true, ["Pork Pie Hat Kid"]=true,
     ["Sandman"]=true, ["Eleven Men"]=true, ["Blackmore"]=true,
     ["Ringo Roadagain"]=true, ["Wekapipo"]=true, ["Magenta Magenta"]=true,
     ["Diego Brando"]=true, ["Funny Valentine"]=true, ["Ojiro Sasame"]=true,
@@ -273,17 +289,22 @@ end
 local function IsPucci()   return GetStoryEnemyName() == "Enrico Pucci" end
 local function IsTooru()   return GetStoryEnemyName() == "Tooru"        end
 
--- True if the current enemy uses the Pucci config
+-- True if current enemy should use Pucci config (Pucci + post-prestige except Tooru)
 local function EnemyUsesPucciConfig()
     return PUCCI_CONFIG_ENEMIES[GetStoryEnemyName()] == true
 end
 
--- True if we are on a prestige-eligible story (by button text) OR enemy
+-- True if current enemy is prestige-eligible (for prestige detection only)
+local function EnemyIsPrestigeEligible()
+    return PRESTIGE_ELIGIBLE_ENEMIES[GetStoryEnemyName()] == true
+end
+
+-- True if we are on a prestige-eligible story (by button text) OR fighting a prestige-eligible enemy
 local function IsOnPrestigeStage()
     local storyName = GetCurrentStoryName()
     local enemyName = GetStoryEnemyName()
     return POST_PRESTIGE_STORIES[storyName] == true
-        or PUCCI_CONFIG_ENEMIES[enemyName] == true
+        or PRESTIGE_ELIGIBLE_ENEMIES[enemyName] == true
 end
 
 -- ================================================================
@@ -1366,15 +1387,26 @@ local function FleeAnyActiveBattle()
 end
 
 local function EnsureStyle(targetStyle)
-    if CurrentStyle == targetStyle then return end
+    -- normalize shorthand
+    local fullName = targetStyle
+    if targetStyle == "ULF" then fullName = "Ultimate Lifeform" end
+
+    -- compare using the full name since CurrentStyle stores shorthand
+    local currentMatch = false
+    if targetStyle == "ULF" and CurrentStyle == "ULF" then currentMatch = true end
+    if targetStyle == fullName and CurrentStyle == fullName then currentMatch = true end
+    if CurrentStyle:lower() == fullName:lower() then currentMatch = true end
+    if currentMatch then return end
+
     FleeAnyActiveBattle()
-    local slot = FindStyleSlotByName(targetStyle)
+    local slot = FindStyleSlotByName(fullName)
     if slot then SwapStyle(slot) else SwapStyle(1) end
     local waited = 0
     while waited < 5 do
         task.wait(0.3); waited += 0.3
         DetectLoadoutFromInventory()
-        if CurrentStyle == targetStyle then return end
+        if CurrentStyle == "ULF" and targetStyle == "ULF" then return end
+        if CurrentStyle:lower() == fullName:lower() then return end
     end
 end
 
@@ -1779,25 +1811,41 @@ local function IsBokuNoRhythm()
     return false
 end
 
-local function EnsureTraining()
-    -- navigate to training page so the frame is loaded
-    local vInput = Instance.new("InputObject")
-    vInput.KeyCode = Enum.KeyCode.Five
-    vInput.UserInputType = Enum.UserInputType.Keyboard
-    game:GetService("UserInputService").InputBegan:Fire(vInput, false)
-    task.wait(0.3)
+local function PressGameKey(keyCode)
+    -- Use executor keypress globals if available, fallback to VirtualInputManager
+    local key = keyCode.Value
+    if keypress then
+        keypress(key); task.wait(0.05); keyrelease(key)
+    else
+        local vim = game:GetService("VirtualInputManager")
+        vim:SendKeyEvent(true,  keyCode, false, game)
+        task.wait(0.05)
+        vim:SendKeyEvent(false, keyCode, false, game)
+    end
+end
 
+local function EnsureTraining()
+    -- navigate to training page (key 5)
+    PressGameKey(Enum.KeyCode.Five)
+    task.wait(0.6)
+
+    -- check button text; if "Start Training" fire remote to enable
+    -- if we can't read the button, fire anyway to be safe
     local btn = SafeGet(PlayerGui, table.unpack(TRAINING_BTN_PATH))
-    if btn and (btn.Text or ""):find("Start Training") then
+    if btn then
+        if (btn.Text or ""):find("Start Training") then
+            ToggleTraining:FireServer(true)
+        end
+        -- if "Stop Training" it's already on, do nothing
+    else
+        -- can't read button, fire remote to ensure training is on
         ToggleTraining:FireServer(true)
     end
 
-    task.wait(0.2)
-    -- return to story/dungeon/wb page
-    local vInput2 = Instance.new("InputObject")
-    vInput2.KeyCode = Enum.KeyCode.One
-    vInput2.UserInputType = Enum.UserInputType.Keyboard
-    game:GetService("UserInputService").InputBegan:Fire(vInput2, false)
+    task.wait(0.3)
+    -- return to story/dungeon/wb page (key 1)
+    PressGameKey(Enum.KeyCode.One)
+    task.wait(0.3)
 end
 
 -- ================================================================
@@ -1805,11 +1853,8 @@ end
 -- ================================================================
 local function RunStoryLoop()
     -- ensure we are on the story/dungeon/wb page
-    local vInput = Instance.new("InputObject")
-    vInput.KeyCode = Enum.KeyCode.One
-    vInput.UserInputType = Enum.UserInputType.Keyboard
-    game:GetService("UserInputService").InputBegan:Fire(vInput, false)
-    task.wait(0.2)
+    PressGameKey(Enum.KeyCode.One)
+    task.wait(0.3)
 
     EnforceStoryLoadout()
     TryFleeFromDungeon()
@@ -1838,20 +1883,16 @@ local function RunStoryLoop()
             end
             RunWorldBossFight(); task.wait(ACTION_CD)
 
-        -- Prestige: story button shows a post-prestige eligible story, and we are not mid-combat
-        elseif PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
-            FirePrestige(); task.wait(ACTION_CD)
-
-        -- Prestige: Boku no Rhythm specifically ready (belt-and-suspenders check)
-        elseif PrestigeEnabled and IsBokuNoRhythm() then
+        -- Prestige check: if prestige is on and we are on/past a prestige stage, prestige now
+        elseif PrestigeEnabled and IsOnPrestigeStage() and not IsInStoryBattle() then
             FirePrestige(); task.wait(ACTION_CD)
 
         else
             CombatAction:FireServer("EngageStory"); task.wait(ACTION_CD)
             RunStoryBattleLoop(function() return StoryEnabled end)
             task.wait(ACTION_CD)
-            -- After each combat: check if prestige is now applicable
-            if PrestigeEnabled and IsOnPrestigeStage() and not IsInStoryBattle() then
+            -- After combat finished: immediately check prestige before looping back
+            if PrestigeEnabled and IsOnPrestigeStage() then
                 FirePrestige(); task.wait(ACTION_CD)
             end
         end
@@ -1864,18 +1905,16 @@ end
 -- [[ AUTO DUNGEON LOOP ]]
 -- ================================================================
 local function RunDungeonLoop()
-    -- ensure we are on the story/dungeon/wb page
-    local vInput = Instance.new("InputObject")
-    vInput.KeyCode = Enum.KeyCode.One
-    vInput.UserInputType = Enum.UserInputType.Keyboard
-    game:GetService("UserInputService").InputBegan:Fire(vInput, false)
-    task.wait(0.2)
-
-    -- Blind-fire story flee on startup (safe if not in story, identical to Proto A pattern)
+    -- Blind-fire story flee (safe if not in story)
     StoryUseSkill("Flee")
     task.wait(1)
 
-    EnforceDungeonLoadout()
+    -- enforce stand/style directly without calling FleeAnyActiveBattle again
+    DetectLoadoutFromInventory()
+    if CFG.dungeonStandName and CFG.dungeonStandName ~= "" then
+        EnsureStand(CFG.dungeonStandName)
+    end
+    EnsureStyle("ULF")
 
     while DungeonEnabled and not ScriptKilled do
         if CFG.dailyModeOn and CFG.dailyFloor then
@@ -1900,10 +1939,11 @@ local function RunDungeonLoop()
         end
 
         if not IsInDungeonBattle() then
-            StartDungeon(); task.wait(ACTION_CD)
+            StartDungeon()
+            task.wait(1)
             local waited = 0
-            while not IsInDungeonBattle() and waited < 5 do
-                task.wait(0.2); waited += 0.2
+            while not IsInDungeonBattle() and waited < 8 do
+                task.wait(0.3); waited = waited + 0.3
             end
         end
         if IsInDungeonBattle() then
@@ -1936,12 +1976,9 @@ PrestigeBtn.MouseButton1Click:Connect(function()
     PrestigeEnabled     = not PrestigeEnabled
     CFG.prestigeEnabled = PrestigeEnabled
     UpdatePrestigeVisuals()
-    -- If story already running and we just turned prestige ON,
-    -- check immediately if we are on a prestige-eligible stage
-    -- The running loop will pick this up on its next iteration naturally,
-    -- but if we are currently mid-combat on a prestige-eligible enemy,
-    -- the battle loop will finish and the post-combat prestige check will fire.
-    -- No restart needed - the loop reads PrestigeEnabled and IsOnPrestigeStage() each iteration.
+    -- The story loop checks PrestigeEnabled and IsOnPrestigeStage() at the top of each
+    -- iteration and after each combat. No restart needed - it will pick up the flag
+    -- on the very next iteration (after current combat ends if mid-fight).
 end)
 
 StoryBtn.MouseButton1Click:Connect(function()
