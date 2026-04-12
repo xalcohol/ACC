@@ -1757,19 +1757,21 @@ local function PressGameKey(keyCode)
 end
 
 local function EnsureTraining()
+    -- Navigate to training page so the frame is active
     PressGameKey(Enum.KeyCode.Five)
-    task.wait(0.6)
+    task.wait(1.5)
+    -- Read the button - only fire if training is currently OFF
     local btn = SafeGet(PlayerGui, table.unpack(TRAINING_BTN_PATH))
-    if btn then
-        if (btn.Text or ""):find("Start Training") then
-            ToggleTraining:FireServer(true)
-        end
-    else
+    local text = btn and (btn.Text or "") or ""
+    if text:find("Start Training") or text == "" then
+        -- "Start Training" = off, fire once to turn on
+        -- empty = couldn't read, fire once as best effort
         ToggleTraining:FireServer(true)
     end
-    task.wait(0.3)
+    -- if "Stop Training" = already on, don't fire (would toggle it OFF)
+    task.wait(0.5)
     PressGameKey(Enum.KeyCode.One)
-    task.wait(0.3)
+    task.wait(0.5)
 end
 
 -- ================================================================
@@ -1783,11 +1785,9 @@ local function RunStoryLoop()
     TryFleeFromDungeon()
     task.wait(0.5)
 
-    EnsureTraining()
-
     -- Immediate prestige check on entry:
     -- not in combat + already on/past a prestige stage -> prestige now
-    if PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
+    if StoryEnabled and PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
         FirePrestige(); task.wait(ACTION_CD)
     end
 
@@ -1795,7 +1795,7 @@ local function RunStoryLoop()
     if IsInStoryBattle() then
         RunStoryBattleLoop(function() return StoryEnabled end)
         task.wait(ACTION_CD)
-        if PrestigeEnabled and IsOnPrestigeStage() then
+        if StoryEnabled and PrestigeEnabled and IsOnPrestigeStage() then
             FirePrestige(); task.wait(ACTION_CD)
         end
     end
@@ -1819,7 +1819,8 @@ local function RunStoryLoop()
             RunStoryBattleLoop(function() return StoryEnabled end)
             task.wait(ACTION_CD)
             -- after every combat: check prestige before engaging next
-            if PrestigeEnabled and IsOnPrestigeStage() then
+            -- guard on StoryEnabled so stopping story mid-combat doesn't fire this
+            if StoryEnabled and PrestigeEnabled and IsOnPrestigeStage() then
                 FirePrestige(); task.wait(ACTION_CD)
             end
         end
@@ -1832,7 +1833,11 @@ end
 -- [[ AUTO DUNGEON LOOP ]]
 -- ================================================================
 local function RunDungeonLoop()
-    -- Blind-fire story flee on startup (safe if not in story)
+    -- ensure on story/dungeon/wb page
+    PressGameKey(Enum.KeyCode.One)
+    task.wait(0.5)
+
+    -- Blind-fire story flee (safe if not in story)
     StoryUseSkill("Flee")
     task.wait(1)
 
@@ -1903,13 +1908,9 @@ PrestigeBtn.MouseButton1Click:Connect(function()
     PrestigeEnabled     = not PrestigeEnabled
     CFG.prestigeEnabled = PrestigeEnabled
     UpdatePrestigeVisuals()
-    -- Restart story loop so it immediately rescans prestige state
-    if StoryEnabled then
-        StoryEnabled = false
-        task.wait(0.2)
-        StoryEnabled = true
-        task.spawn(RunStoryLoop)
-    end
+    -- The running loop checks PrestigeEnabled + IsOnPrestigeStage() at the
+    -- top of every iteration and after every combat. No restart needed --
+    -- restarting would interrupt active combat and cause a double-loop.
 end)
 
 StoryBtn.MouseButton1Click:Connect(function()
