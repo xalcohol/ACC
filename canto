@@ -1623,7 +1623,12 @@ local function RunStoryBattleLoop(enabledFlag)
     task.wait(0.5)
     ConfirmLoadoutInCombat(StoryCtx)
     while enabledFlag() and not ScriptKilled and IsInStoryBattle() do
-        RunStoryCombatTick(); task.wait(ACTION_CD)
+        RunStoryCombatTick()
+        task.wait(ACTION_CD)
+        -- After each tick: if prestige mode just became relevant mid-chain, exit now
+        if PrestigeEnabled and ShouldPrestigeNow() and not IsInStoryBattle() then
+            break
+        end
     end
     StoryCtx.HasBlockedThisDip = false
 end
@@ -1818,15 +1823,18 @@ local function RunStoryLoop()
             RunWorldBossFight(); task.wait(ACTION_CD)
 
         elseif PrestigeEnabled and ShouldPrestigeNow() then
-            -- Story button is on/past Pucci stage, or enemy is prestige-eligible.
-            -- Finish any active combat first, then prestige.
+            -- Prestige is available: finish current combat if in one, then prestige
             if IsInStoryBattle() then
                 RunStoryBattleLoop(function() return StoryEnabled end)
                 task.wait(ACTION_CD)
             end
-            if StoryEnabled and PrestigeEnabled then
-                FirePrestige(); task.wait(ACTION_CD)
-            end
+            FirePrestige(); task.wait(ACTION_CD)
+
+        elseif PrestigeEnabled then
+            -- Prestige mode on but not yet available: run stories normally
+            CombatAction:FireServer("EngageStory"); task.wait(ACTION_CD)
+            RunStoryBattleLoop(function() return StoryEnabled end)
+            task.wait(ACTION_CD)
 
         else
             CombatAction:FireServer("EngageStory"); task.wait(ACTION_CD)
