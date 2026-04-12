@@ -233,8 +233,6 @@ local STORY_BTN_PATH = {
 -- ================================================================
 -- [[ ENEMY / STORY DETECTION ]]
 -- ================================================================
--- Enemies that use the Pucci priority config
--- Enrico Pucci + all post-prestige enemies EXCEPT Tooru (he has his own config)
 local PUCCI_CONFIG_ENEMIES = {
     ["Enrico Pucci"]=true,
     ["Oyecomova"]=true, ["Pork Pie Hat Kid"]=true,
@@ -247,8 +245,6 @@ local PUCCI_CONFIG_ENEMIES = {
     ["Jobin Higashikata"]=true,
 }
 
--- All prestige-eligible enemies (Pucci config enemies + Tooru)
--- Used only for prestige stage detection, not combat config selection
 local PRESTIGE_ELIGIBLE_ENEMIES = {
     ["Enrico Pucci"]=true,
     ["Oyecomova"]=true, ["Pork Pie Hat Kid"]=true,
@@ -261,7 +257,6 @@ local PRESTIGE_ELIGIBLE_ENEMIES = {
     ["Jobin Higashikata"]=true, ["Tooru"]=true,
 }
 
--- Stories that are post-prestige (prestige available after completing these)
 local POST_PRESTIGE_STORIES = {
     ["Boku no Rhythm"]=true, ["Wired"]=true, ["In a Silent Way"]=true,
     ["Tattoo You!"]=true, ["Catch the Rainbow"]=true, ["True Man's World"]=true,
@@ -270,7 +265,6 @@ local POST_PRESTIGE_STORIES = {
     ["Paper Moon King"]=true, ["I Am a Rock"]=true, ["Doobie Wah!"]=true,
     ["Vitamin C"]=true, ["Brain Storm"]=true, ["Blue Hawaii"]=true,
     ["Speed King"]=true, ["Wonder of U"]=true,
-    -- Heaven Averted is the last pre-prestige story (contains Pucci)
     ["Heaven Averted"]=true,
 }
 
@@ -279,7 +273,6 @@ local function GetStoryEnemyName()
     return label and (label.Text or "") or ""
 end
 
--- Read the story engage button text to detect current/next story name
 local function GetCurrentStoryName()
     local btn = SafeGet(PlayerGui, table.unpack(STORY_BTN_PATH))
     if not btn then return "" end
@@ -289,17 +282,10 @@ end
 local function IsPucci()   return GetStoryEnemyName() == "Enrico Pucci" end
 local function IsTooru()   return GetStoryEnemyName() == "Tooru"        end
 
--- True if current enemy should use Pucci config (Pucci + post-prestige except Tooru)
 local function EnemyUsesPucciConfig()
     return PUCCI_CONFIG_ENEMIES[GetStoryEnemyName()] == true
 end
 
--- True if current enemy is prestige-eligible (for prestige detection only)
-local function EnemyIsPrestigeEligible()
-    return PRESTIGE_ELIGIBLE_ENEMIES[GetStoryEnemyName()] == true
-end
-
--- True if we are on a prestige-eligible story (by button text) OR fighting a prestige-eligible enemy
 local function IsOnPrestigeStage()
     local storyName = GetCurrentStoryName()
     local enemyName = GetStoryEnemyName()
@@ -370,7 +356,6 @@ local function FormatStandLabel(rawText)
     return base
 end
 
--- Base proper-case name for config storage (no abbrev, no traits)
 local function FormatBaseName(rawText)
     local clean = StripRichText(rawText)
     clean = StripSlotPrefix(clean)
@@ -388,10 +373,6 @@ end
 
 -- ================================================================
 -- [[ SLOT SCANNERS ]]
--- Slot 1 = child index 1 → swap arg 1
--- Slot 2 = child index 3 → swap arg 2
--- Slot 3 = child index 4 → swap arg 3  etc.
--- (index 2 is UIListLayout/TitleLabel, skipped since IsA("Frame") filters it)
 -- ================================================================
 local function ScanStandSlots()
     local container = SafeGet(PlayerGui, table.unpack(STAND_STORAGE_PATH))
@@ -447,7 +428,7 @@ local function GetEquippedStandSlot()
     local rawText = lbl.Text or ""
     return {
         slotNum     = 0,
-        swapArg     = nil, -- already equipped, no swap needed
+        swapArg     = nil,
         displayName = "Equipped: " .. FormatStandLabel(rawText),
         baseName    = FormatBaseName(rawText),
         isEmpty     = false,
@@ -559,9 +540,8 @@ ScreenGui.ResetOnSpawn   = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent         = PlayerGui
 
--- window: 300w, auto height
 local WIN_W = 300
-local TAB_H = 38  -- height of tab bar at bottom
+local TAB_H = 38
 
 local Main = Instance.new("Frame", ScreenGui)
 Main.Name             = "Main"
@@ -576,9 +556,6 @@ do
     local s = Instance.new("UIStroke", Main); s.Color = STROKE; s.Thickness = 1
 end
 
--- ================================================================
--- [[ CONTENT PAGES ]]
--- ================================================================
 local ContentArea = Instance.new("Frame", Main)
 ContentArea.Name             = "ContentArea"
 ContentArea.Size             = UDim2.new(1, 0, 1, -TAB_H)
@@ -601,9 +578,6 @@ PageConfig.BackgroundTransparency = 1
 PageConfig.BorderSizePixel  = 0
 PageConfig.Visible          = false
 
--- ================================================================
--- [[ TAB BAR ]] -- sits at the bottom of the window
--- ================================================================
 local TabBar = Instance.new("Frame", Main)
 TabBar.Name             = "TabBar"
 TabBar.Size             = UDim2.new(1, 0, 0, TAB_H)
@@ -612,17 +586,14 @@ TabBar.BackgroundColor3 = BG2
 TabBar.BorderSizePixel  = 0
 do
     local c = Instance.new("UICorner", TabBar); c.CornerRadius = UDim.new(0, 10)
-    -- flatten top corners
     local flat = Instance.new("Frame", TabBar)
     flat.Size = UDim2.new(1, 0, 0, 12); flat.Position = UDim2.new(0, 0, 0, 0)
     flat.BackgroundColor3 = BG2; flat.BorderSizePixel = 0
-    -- divider line above tabs
     local div = Instance.new("Frame", TabBar)
     div.Size = UDim2.new(1, 0, 0, 1); div.Position = UDim2.new(0, 0, 0, 0)
     div.BackgroundColor3 = DIVIDER; div.BorderSizePixel = 0
 end
 
--- tab buttons
 local function MakeTab(icon, xPos, isActive)
     local btn = Instance.new("TextButton", TabBar)
     btn.Size             = UDim2.new(0.5, -1, 1, -8)
@@ -640,7 +611,6 @@ end
 local TabAutoBtn   = MakeTab("A", 0.01, true)
 local TabConfigBtn = MakeTab("S", 0.505, false)
 
--- active indicator bar under tab
 local function MakeTabIndicator(xPos)
     local ind = Instance.new("Frame", TabBar)
     ind.Size             = UDim2.new(0.5, -10, 0, 2)
@@ -681,11 +651,10 @@ TabAutoBtn.MouseButton1Click:Connect(function()   SwitchTab("auto")   end)
 TabConfigBtn.MouseButton1Click:Connect(function() SwitchTab("config") end)
 
 -- ================================================================
--- [[ PAGE AUTO — LAYOUT ]]
+-- [[ PAGE AUTO LAYOUT ]]
 -- ================================================================
 local PAD = 14
 
--- header pill: Stand + Style
 local HeaderCard = Instance.new("Frame", PageAuto)
 HeaderCard.Size             = UDim2.new(1, -PAD*2, 0, 56)
 HeaderCard.Position         = UDim2.new(0, PAD, 0, PAD)
@@ -700,7 +669,7 @@ local StandLabel = Instance.new("TextLabel", HeaderCard)
 StandLabel.Size             = UDim2.new(1, -16, 0, 22)
 StandLabel.Position         = UDim2.new(0, 10, 0, 6)
 StandLabel.BackgroundTransparency = 1
-StandLabel.Text             = "Stand  —"
+StandLabel.Text             = "Stand:  ---"
 StandLabel.TextColor3       = Color3.fromRGB(160, 200, 255)
 StandLabel.TextSize         = 11
 StandLabel.Font             = Enum.Font.GothamMedium
@@ -711,7 +680,7 @@ local StyleLabel = Instance.new("TextLabel", HeaderCard)
 StyleLabel.Size             = UDim2.new(1, -16, 0, 22)
 StyleLabel.Position         = UDim2.new(0, 10, 0, 28)
 StyleLabel.BackgroundTransparency = 1
-StyleLabel.Text             = "Style  —"
+StyleLabel.Text             = "Style:   ---"
 StyleLabel.TextColor3       = Color3.fromRGB(255, 205, 140)
 StyleLabel.TextSize         = 11
 StyleLabel.Font             = Enum.Font.GothamMedium
@@ -723,7 +692,6 @@ local function UpdateLoadoutDisplay()
     StyleLabel.Text = "Style:   " .. CurrentStyle
 end
 
--- prestige golden bar
 local PrestigeBar = Instance.new("Frame", PageAuto)
 PrestigeBar.Name             = "PrestigeBar"
 PrestigeBar.Size             = UDim2.new(1, -PAD*2, 0, 18)
@@ -741,19 +709,17 @@ do
     })
     local lbl = Instance.new("TextLabel", PrestigeBar)
     lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1
-    lbl.Text = "✦  Prestige Mode  ✦"; lbl.TextColor3 = GOLD
+    lbl.Text = "Prestige Mode"; lbl.TextColor3 = GOLD
     lbl.TextSize = 9; lbl.Font = Enum.Font.GothamBold
     lbl.TextXAlignment = Enum.TextXAlignment.Center
 end
 
--- section divider helper
 local function MakeDivider(parent, y, label)
     local line = Instance.new("Frame", parent)
     line.Size             = UDim2.new(1, -PAD*2, 0, 1)
     line.Position         = UDim2.new(0, PAD, 0, y)
     line.BackgroundColor3 = DIVIDER
     line.BorderSizePixel  = 0
-
     if label then
         local bg = Instance.new("Frame", line)
         bg.Size             = UDim2.new(0, #label * 6 + 14, 0, 16)
@@ -768,10 +734,8 @@ local function MakeDivider(parent, y, label)
     end
 end
 
--- positions: prestige bar at 78, so story divider at 104
 MakeDivider(PageAuto, 104, "  Story  ")
 
--- button row builder
 local function MakeBtnRow(parent, yPos)
     local ROW_W = WIN_W - PAD*2
     local MAIN_W  = math.floor(ROW_W * 0.47)
@@ -797,10 +761,10 @@ local function MakeBtnRow(parent, yPos)
     local x3 = MAIN_W + MID_W + 6
     return Mk(0, MAIN_W, BG3, TPRIM, "", 12),
            Mk(x2, MID_W, BG3, TSUB, "", 11),
-           Mk(x3, SMALL_W, BG3, TSUB, "≡", 14)
+           Mk(x3, SMALL_W, BG3, TSUB, "=", 14)
 end
 
-local StoryBtn, PrestigeBtn, StorySetBtn     = MakeBtnRow(PageAuto, 113)
+local StoryBtn, PrestigeBtn, StorySetBtn  = MakeBtnRow(PageAuto, 113)
 StoryBtn.Text    = "Auto Story"
 PrestigeBtn.Text = "Prestige"
 do local s = Instance.new("UIStroke", StorySetBtn); s.Color = ACCENT2; s.Thickness = 1 end
@@ -808,13 +772,12 @@ do local s = Instance.new("UIStroke", PrestigeBtn); s.Color = STROKE; s.Thicknes
 
 MakeDivider(PageAuto, 157, "  Dungeon  ")
 
-local DungeonBtn, DailyBtn, DungeonSetBtn    = MakeBtnRow(PageAuto, 166)
+local DungeonBtn, DailyBtn, DungeonSetBtn = MakeBtnRow(PageAuto, 166)
 DungeonBtn.Text = "Auto Dungeon"
 DailyBtn.Text   = "Daily Mode"
 do local s = Instance.new("UIStroke", DungeonSetBtn); s.Color = ACCENT2; s.Thickness = 1 end
 do local s = Instance.new("UIStroke", DailyBtn); s.Color = STROKE; s.Thickness = 1 end
 
--- status bar
 local StatusBar = Instance.new("Frame", PageAuto)
 StatusBar.Size             = UDim2.new(1, -PAD*2, 0, 26)
 StatusBar.Position         = UDim2.new(0, PAD, 0, 210)
@@ -833,7 +796,6 @@ local function SetStatus(text, color)
     StatusLbl.TextColor3 = color or TSUB
 end
 
--- disabled overlays
 local function ApplyDisabledOverlay(btn)
     if btn:FindFirstChild("DisabledOverlay") then return end
     local ov = Instance.new("Frame", btn)
@@ -850,7 +812,7 @@ local function LockButton(btn)   btn.Active = false; ApplyDisabledOverlay(btn) e
 local function UnlockButton(btn) btn.Active = true;  RemoveDisabledOverlay(btn) end
 
 -- ================================================================
--- [[ PAGE CONFIG — LAYOUT ]]
+-- [[ PAGE CONFIG LAYOUT ]]
 -- ================================================================
 local function MakeConfigBtn(parent, y, text, bg, tc)
     local b = Instance.new("TextButton", parent)
@@ -869,8 +831,8 @@ local function MakeConfigBtn(parent, y, text, bg, tc)
     return b
 end
 
-local SaveBtn   = MakeConfigBtn(PageConfig, 18,  "Save Config")
-local KillBtn   = MakeConfigBtn(PageConfig, 62,  "Kill Script", Color3.fromRGB(55,14,14), PAUT)
+local SaveBtn = MakeConfigBtn(PageConfig, 18,  "Save Config")
+local KillBtn = MakeConfigBtn(PageConfig, 62,  "Kill Script", Color3.fromRGB(55,14,14), PAUT)
 
 local CfgStatus = Instance.new("TextLabel", PageConfig)
 CfgStatus.Size = UDim2.new(1, -PAD*2, 0, 18); CfgStatus.Position = UDim2.new(0, PAD, 0, 106)
@@ -924,7 +886,6 @@ local function PopupHeader(title)
     local div = Instance.new("Frame", PopupFrame)
     div.Size = UDim2.new(1,-20,0,1); div.Position = UDim2.new(0,10,0,34)
     div.BackgroundColor3 = DIVIDER; div.BorderSizePixel = 0; div.ZIndex = 32
-
     return 40
 end
 
@@ -962,7 +923,6 @@ local function ShowSlotPicker(title, slots, onSelect)
 
             local cap = slot
             selBtn.MouseButton1Click:Connect(function() onSelect(cap) end)
-
             y = y + ITEM_H + 4
         end
     end
@@ -996,7 +956,6 @@ local function ShowPriorityBuilder(title, moves, currentPrio, onSave)
         return pool
     end
 
-    -- column labels
     local avlL = Instance.new("TextLabel", PopupFrame)
     avlL.Size = UDim2.new(0.5,-8,0,14); avlL.Position = UDim2.new(0,9,0,y)
     avlL.BackgroundTransparency = 1; avlL.Text = "Available"
@@ -1111,7 +1070,7 @@ end
 local function ShowDailyPopup()
     local w = WIN_W - 28
     OpenPopup(w, 150)
-    local y = PopupHeader("Daily Mode — Stop Floor")
+    local y = PopupHeader("Daily Mode - Stop Floor")
 
     local infoLbl = Instance.new("TextLabel", PopupFrame)
     infoLbl.Size = UDim2.new(1,-18,0,18); infoLbl.Position = UDim2.new(0,9,0,y)
@@ -1152,14 +1111,10 @@ end
 -- ================================================================
 local function GetMovePool(standName, styleName)
     local pool = {}
-    -- use exact key "Ultimate Lifeform" for ULF shorthand
     local styleKey = styleName
     if styleName == "ULF" then styleKey = "Ultimate Lifeform" end
-
     if standName and STAND_MOVES[standName] then
-        for _, m in ipairs(STAND_MOVES[standName].moves) do
-            table.insert(pool, m)
-        end
+        for _, m in ipairs(STAND_MOVES[standName].moves) do table.insert(pool, m) end
     end
     if styleKey and STYLE_MOVES[styleKey] then
         for _, m in ipairs(STYLE_MOVES[styleKey].moves) do
@@ -1170,7 +1125,6 @@ local function GetMovePool(standName, styleName)
 end
 
 local function BuildStandPickerList()
-    -- equipped stand at top, then storage slots
     local list = {}
     local eq = GetEquippedStandSlot()
     if eq and not eq.isEmpty then table.insert(list, eq) end
@@ -1192,21 +1146,21 @@ end
 
 local function RunStorySettingsFlow()
     local standList = BuildStandPickerList()
-    ShowSlotPicker("Story — Select Stand", standList, function(s)
+    ShowSlotPicker("Story - Select Stand", standList, function(s)
         CFG.storyStandName = s.baseName
         local storyMoves = GetMovePool(CFG.storyStandName, "Ultimate Lifeform")
-        ShowPriorityBuilder("Priority — Enrico Pucci", storyMoves, CFG.pucciPriority, function(p1)
+        ShowPriorityBuilder("Priority - Enrico Pucci", storyMoves, CFG.pucciPriority, function(p1)
             CFG.pucciPriority = p1
-            ShowPriorityBuilder("Priority — Tooru", storyMoves, CFG.tooruPriority, function(p2)
+            ShowPriorityBuilder("Priority - Tooru", storyMoves, CFG.tooruPriority, function(p2)
                 CFG.tooruPriority = p2
                 local wbStandList = BuildStandPickerList()
-                ShowSlotPicker("World Boss — Select Stand", wbStandList, function(ws)
+                ShowSlotPicker("World Boss - Select Stand", wbStandList, function(ws)
                     CFG.wbStandName = ws.baseName
                     local wbStyleList = BuildStylePickerList()
-                    ShowSlotPicker("World Boss — Select Style", wbStyleList, function(wst)
+                    ShowSlotPicker("World Boss - Select Style", wbStyleList, function(wst)
                         CFG.wbStyleName = wst.baseName
                         local wbMoves = GetMovePool(CFG.wbStandName, CFG.wbStyleName)
-                        ShowPriorityBuilder("Priority — World Boss", wbMoves, CFG.wbPriority, function(p3)
+                        ShowPriorityBuilder("Priority - World Boss", wbMoves, CFG.wbPriority, function(p3)
                             CFG.wbPriority = p3
                             ClosePopup()
                             SetStatus("Story config saved", RUNT)
@@ -1221,10 +1175,10 @@ end
 
 local function RunDungeonSettingsFlow()
     local standList = BuildStandPickerList()
-    ShowSlotPicker("Dungeon — Select Stand", standList, function(s)
+    ShowSlotPicker("Dungeon - Select Stand", standList, function(s)
         CFG.dungeonStandName = s.baseName
         local dungeonMoves = GetMovePool(CFG.dungeonStandName, "Ultimate Lifeform")
-        ShowPriorityBuilder("Priority — Dungeon", dungeonMoves, CFG.dungeonPriority, function(p1)
+        ShowPriorityBuilder("Priority - Dungeon", dungeonMoves, CFG.dungeonPriority, function(p1)
             CFG.dungeonPriority = p1
             ClosePopup()
             SetStatus("Dungeon config saved", RUNT)
@@ -1387,29 +1341,19 @@ local function FleeAnyActiveBattle()
 end
 
 local function EnsureStyle(targetStyle)
-    -- normalize ULF shorthand for comparison
-    local targetFull = targetStyle
-    if targetStyle == "ULF" then targetFull = "Ultimate Lifeform" end
+    local fullName = targetStyle
+    if targetStyle == "ULF" then fullName = "Ultimate Lifeform" end
 
-    -- CurrentStyle stores shorthand ("ULF", "Shrine", "Unknown")
-    -- match by checking shorthand alias too
     local function styleMatches()
-        if CurrentStyle == targetStyle then return true end
         if targetStyle == "ULF" and CurrentStyle == "ULF" then return true end
+        if CurrentStyle:lower() == fullName:lower() then return true end
         return false
     end
 
     if styleMatches() then return end
     FleeAnyActiveBattle()
-
-    -- find slot by full name first; if not found use slot 1 (Proto A fallback)
-    local slot = FindStyleSlotByName(targetFull)
-    if slot then
-        SwapStyle(slot)
-    else
-        SwapStyle(1)
-    end
-
+    local slot = FindStyleSlotByName(fullName)
+    if slot then SwapStyle(slot) else SwapStyle(1) end
     local waited = 0
     while waited < 5 do
         task.wait(0.3); waited += 0.3
@@ -1538,7 +1482,6 @@ local function RunStoryCombatTick()
     local hasStamina = stamina >= STAMINA_THRESHOLD
     if not hasEnergy and not hasStamina then UseSkill(ctx,"Rest"); return end
 
-    -- Tooru: unique config (checked before Pucci-config catch-all)
     if IsTooru() then
         if #CFG.tooruPriority > 0 then
             if ExecutePriority(ctx, CFG.tooruPriority) then return end
@@ -1558,7 +1501,6 @@ local function RunStoryCombatTick()
         UseSkill(ctx,"Rest"); return
     end
 
-    -- Pucci + all post-prestige enemies: use pucciPriority config
     if EnemyUsesPucciConfig() then
         if #CFG.pucciPriority > 0 then
             if ExecutePriority(ctx, CFG.pucciPriority) then return end
@@ -1574,7 +1516,6 @@ local function RunStoryCombatTick()
         UseSkill(ctx,"Rest"); return
     end
 
-    -- All other pre-prestige enemies: normal attack only
     if hasEnergy and CanUse(ctx,"Infinite Rotation") then UseSkill(ctx,"Infinite Rotation"); return end
     UseSkill(ctx,"Rest")
 end
@@ -1801,26 +1742,9 @@ local function RunWorldBossFight()
 end
 
 -- ================================================================
--- [[ STORY HELPERS ]]
+-- [[ TRAINING + KEY PRESS ]]
 -- ================================================================
-
--- Check story button text for Boku no Rhythm (used when prestige fires)
-local function IsBokuNoRhythm()
-    local storyName = GetCurrentStoryName()
-    if storyName:find("Boku no Rhythm") then return true end
-    -- fallback: check descendants of button
-    local btn = SafeGet(PlayerGui, table.unpack(STORY_BTN_PATH))
-    if not btn then return false end
-    for _, obj in ipairs(btn:GetDescendants()) do
-        if (obj:IsA("TextLabel") or obj:IsA("TextButton")) then
-            if (obj.Text or ""):find("Boku no Rhythm") then return true end
-        end
-    end
-    return false
-end
-
 local function PressGameKey(keyCode)
-    -- Use executor keypress globals if available, fallback to VirtualInputManager
     local key = keyCode.Value
     if keypress then
         keypress(key); task.wait(0.05); keyrelease(key)
@@ -1833,34 +1757,33 @@ local function PressGameKey(keyCode)
 end
 
 local function EnsureTraining()
-    -- navigate to training page (key 5)
     PressGameKey(Enum.KeyCode.Five)
-    task.wait(0.6)
+    task.wait(0.8)
 
-    -- check button text; if "Start Training" fire remote to enable
-    -- if we can't read the button, fire anyway to be safe
     local btn = SafeGet(PlayerGui, table.unpack(TRAINING_BTN_PATH))
     if btn then
         if (btn.Text or ""):find("Start Training") then
             ToggleTraining:FireServer(true)
+            task.wait(0.2)
+            ToggleTraining:FireServer(true)
         end
-        -- if "Stop Training" it's already on, do nothing
+        -- "Stop Training" means already on, do nothing
     else
-        -- can't read button, fire remote to ensure training is on
+        -- frame not found, fire anyway
+        ToggleTraining:FireServer(true)
+        task.wait(0.2)
         ToggleTraining:FireServer(true)
     end
 
     task.wait(0.3)
-    -- return to story/dungeon/wb page (key 1)
     PressGameKey(Enum.KeyCode.One)
-    task.wait(0.3)
+    task.wait(0.4)
 end
 
 -- ================================================================
 -- [[ AUTO STORY LOOP ]]
 -- ================================================================
 local function RunStoryLoop()
-    -- ensure we are on the story/dungeon/wb page
     PressGameKey(Enum.KeyCode.One)
     task.wait(0.3)
 
@@ -1868,15 +1791,13 @@ local function RunStoryLoop()
     TryFleeFromDungeon()
     task.wait(0.5)
 
-    EnsureTraining()
-
-    -- Immediate prestige check on entry (handles toggle-on mid-run case)
-    -- Not in combat and already past Pucci stage → prestige right now
+    -- Immediate prestige check on entry:
+    -- not in combat + already on/past a prestige stage -> prestige now
     if PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
         FirePrestige(); task.wait(ACTION_CD)
     end
 
-    -- If mid-combat on entry, finish it first then check prestige
+    -- if mid-combat on entry, finish it then check prestige
     if IsInStoryBattle() then
         RunStoryBattleLoop(function() return StoryEnabled end)
         task.wait(ACTION_CD)
@@ -1884,12 +1805,10 @@ local function RunStoryLoop()
             FirePrestige(); task.wait(ACTION_CD)
         end
     end
-    end
 
     task.spawn(RunWorldBossScanner)
 
     while StoryEnabled and not ScriptKilled do
-        -- World boss takes top priority
         if WorldBossPriority then
             if IsInStoryBattle() then
                 RunStoryBattleLoop(function() return StoryEnabled end)
@@ -1897,15 +1816,15 @@ local function RunStoryLoop()
             end
             RunWorldBossFight(); task.wait(ACTION_CD)
 
-        -- Prestige check: if prestige is on and we are on/past a prestige stage, prestige now
-        elseif PrestigeEnabled and IsOnPrestigeStage() and not IsInStoryBattle() then
+        elseif PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
+            -- on a prestige stage and not in combat: prestige immediately
             FirePrestige(); task.wait(ACTION_CD)
 
         else
             CombatAction:FireServer("EngageStory"); task.wait(ACTION_CD)
             RunStoryBattleLoop(function() return StoryEnabled end)
             task.wait(ACTION_CD)
-            -- After combat finished: immediately check prestige before looping back
+            -- after every combat: check prestige before engaging next
             if PrestigeEnabled and IsOnPrestigeStage() then
                 FirePrestige(); task.wait(ACTION_CD)
             end
@@ -1916,14 +1835,23 @@ local function RunStoryLoop()
 end
 
 -- ================================================================
--- [[ AUTO DUNGEON LOOP ]] -- mirrors Proto A structure exactly
+-- [[ AUTO DUNGEON LOOP ]]
 -- ================================================================
 local function RunDungeonLoop()
-    -- Blind-fire story flee first (safe even if not in story)
+    -- ensure on story/dungeon/wb page
+    PressGameKey(Enum.KeyCode.One)
+    task.wait(0.5)
+
+    -- Blind-fire story flee (safe if not in story)
     StoryUseSkill("Flee")
     task.wait(1)
 
-    EnforceDungeonLoadout()
+    -- inline loadout enforcement without re-fleeing
+    DetectLoadoutFromInventory()
+    if CFG.dungeonStandName and CFG.dungeonStandName ~= "" then
+        EnsureStand(CFG.dungeonStandName)
+    end
+    EnsureStyle("ULF")
 
     while DungeonEnabled and not ScriptKilled do
         if CFG.dailyModeOn and CFG.dailyFloor then
@@ -1941,7 +1869,7 @@ local function RunDungeonLoop()
                 StoryBtn.BackgroundColor3 = RUNBG
                 StoryBtn.TextColor3       = RUNT
                 LockButton(DungeonBtn)
-                SetStatus("Daily floor hit — switched to story", RUNT)
+                SetStatus("Daily floor hit - switched to story", RUNT)
                 task.spawn(RunStoryLoop)
                 return
             end
@@ -1985,11 +1913,10 @@ PrestigeBtn.MouseButton1Click:Connect(function()
     PrestigeEnabled     = not PrestigeEnabled
     CFG.prestigeEnabled = PrestigeEnabled
     UpdatePrestigeVisuals()
-
-    -- If auto story is running, restart the loop immediately so it rescans prestige state
+    -- Restart story loop so it immediately rescans prestige state
     if StoryEnabled then
         StoryEnabled = false
-        task.wait(0.3)
+        task.wait(0.2)
         StoryEnabled = true
         task.spawn(RunStoryLoop)
     end
@@ -2004,7 +1931,6 @@ StoryBtn.MouseButton1Click:Connect(function()
         StoryBtn.BackgroundColor3 = RUNBG
         StoryBtn.TextColor3       = RUNT
         LockButton(DungeonBtn)
-        -- reset dungeon to idle
         DungeonBtn.Text             = "Auto Dungeon"
         DungeonBtn.BackgroundColor3 = BG3
         DungeonBtn.TextColor3       = TPRIM
@@ -2029,7 +1955,6 @@ DungeonBtn.MouseButton1Click:Connect(function()
         DungeonBtn.BackgroundColor3 = RUNBG
         DungeonBtn.TextColor3       = RUNT
         LockButton(StoryBtn)
-        -- reset story to idle
         StoryBtn.Text             = "Auto Story"
         StoryBtn.BackgroundColor3 = BG3
         StoryBtn.TextColor3       = TPRIM
@@ -2071,7 +1996,7 @@ KillBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================================================================
--- [[ IDLE AUTO-START ]] -- 5 minute idle timer
+-- [[ IDLE AUTO-START ]] -- 5 minute timer
 -- ================================================================
 task.spawn(function()
     task.wait(5)
@@ -2100,7 +2025,6 @@ end)
 -- ================================================================
 -- [[ INIT ]]
 -- ================================================================
--- Auto-load saved config on every run
 if LoadConfig() then
     PrestigeEnabled = CFG.prestigeEnabled
     UpdatePrestigeVisuals()
