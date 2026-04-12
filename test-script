@@ -276,21 +276,37 @@ end
 local function GetCurrentStoryName()
     local btn = SafeGet(PlayerGui, table.unpack(STORY_BTN_PATH))
     if not btn then return "" end
-    return btn.Text or ""
+    -- scan btn and all descendants for the story name text, same as Proto A IsBokuNoRhythm
+    local candidates = { btn }
+    for _, obj in ipairs(btn:GetDescendants()) do
+        table.insert(candidates, obj)
+    end
+    for _, obj in ipairs(candidates) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            local t = obj.Text or ""
+            if t ~= "" then return t end
+        end
+    end
+    return ""
 end
 
-local function IsPucci()   return GetStoryEnemyName() == "Enrico Pucci" end
-local function IsTooru()   return GetStoryEnemyName() == "Tooru"        end
+-- True when story button shows a post-prestige story OR current enemy is prestige-eligible
+-- "Post-prestige" means: Heaven Averted (contains Pucci) or any story after it
+local function ShouldPrestigeNow()
+    -- check enemy name first (works mid-combat)
+    local enemyName = GetStoryEnemyName()
+    if PRESTIGE_ELIGIBLE_ENEMIES[enemyName] then return true end
+    -- check story button text (works between combats)
+    local storyName = GetCurrentStoryName()
+    if POST_PRESTIGE_STORIES[storyName] then return true end
+    return false
+end
+
+local function IsPucci()  return GetStoryEnemyName() == "Enrico Pucci" end
+local function IsTooru()  return GetStoryEnemyName() == "Tooru"        end
 
 local function EnemyUsesPucciConfig()
     return PUCCI_CONFIG_ENEMIES[GetStoryEnemyName()] == true
-end
-
-local function IsOnPrestigeStage()
-    local storyName = GetCurrentStoryName()
-    local enemyName = GetStoryEnemyName()
-    return POST_PRESTIGE_STORIES[storyName] == true
-        or PRESTIGE_ELIGIBLE_ENEMIES[enemyName] == true
 end
 
 -- ================================================================
@@ -1607,6 +1623,16 @@ local function RunStoryBattleLoop(enabledFlag)
     task.wait(0.5)
     ConfirmLoadoutInCombat(StoryCtx)
     while enabledFlag() and not ScriptKilled and IsInStoryBattle() do
+        -- If prestige mode is on and we are on a prestige-eligible enemy,
+        -- finish this single combat tick then exit so the main loop can prestige
+        if PrestigeEnabled and ShouldPrestigeNow() then
+            RunStoryCombatTick(); task.wait(ACTION_CD)
+            -- keep fighting until this specific combat ends, then exit
+            while enabledFlag() and not ScriptKilled and IsInStoryBattle() do
+                RunStoryCombatTick(); task.wait(ACTION_CD)
+            end
+            break
+        end
         RunStoryCombatTick(); task.wait(ACTION_CD)
     end
     StoryCtx.HasBlockedThisDip = false
@@ -1801,7 +1827,7 @@ local function RunStoryLoop()
             end
             RunWorldBossFight(); task.wait(ACTION_CD)
 
-        elseif PrestigeEnabled and IsOnPrestigeStage() then
+        elseif PrestigeEnabled and ShouldPrestigeNow() then
             -- Story button is on/past Pucci stage, or enemy is prestige-eligible.
             -- Finish any active combat first, then prestige.
             if IsInStoryBattle() then
@@ -1901,7 +1927,7 @@ PrestigeBtn.MouseButton1Click:Connect(function()
     PrestigeEnabled     = not PrestigeEnabled
     CFG.prestigeEnabled = PrestigeEnabled
     UpdatePrestigeVisuals()
-    -- The running loop checks PrestigeEnabled + IsOnPrestigeStage() at the
+    -- The running loop checks PrestigeEnabled + ShouldPrestigeNow() at the
     -- top of every iteration and after every combat. No restart needed --
     -- restarting would interrupt active combat and cause a double-loop.
 end)
