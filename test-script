@@ -1387,15 +1387,34 @@ local function FleeAnyActiveBattle()
 end
 
 local function EnsureStyle(targetStyle)
-    if CurrentStyle == targetStyle then return end
+    -- normalize ULF shorthand for comparison
+    local targetFull = targetStyle
+    if targetStyle == "ULF" then targetFull = "Ultimate Lifeform" end
+
+    -- CurrentStyle stores shorthand ("ULF", "Shrine", "Unknown")
+    -- match by checking shorthand alias too
+    local function styleMatches()
+        if CurrentStyle == targetStyle then return true end
+        if targetStyle == "ULF" and CurrentStyle == "ULF" then return true end
+        return false
+    end
+
+    if styleMatches() then return end
     FleeAnyActiveBattle()
-    local slot = FindStyleSlotByName(targetStyle)
-    if slot then SwapStyle(slot) else SwapStyle(1) end
+
+    -- find slot by full name first; if not found use slot 1 (Proto A fallback)
+    local slot = FindStyleSlotByName(targetFull)
+    if slot then
+        SwapStyle(slot)
+    else
+        SwapStyle(1)
+    end
+
     local waited = 0
     while waited < 5 do
         task.wait(0.3); waited += 0.3
         DetectLoadoutFromInventory()
-        if CurrentStyle == targetStyle then return end
+        if styleMatches() then return end
     end
 end
 
@@ -1814,12 +1833,20 @@ local function PressGameKey(keyCode)
 end
 
 local function EnsureTraining()
-    -- navigate to training page (key 5) so the frame is loaded
+    -- navigate to training page (key 5)
     PressGameKey(Enum.KeyCode.Five)
-    task.wait(0.5)
+    task.wait(0.6)
 
+    -- check button text; if "Start Training" fire remote to enable
+    -- if we can't read the button, fire anyway to be safe
     local btn = SafeGet(PlayerGui, table.unpack(TRAINING_BTN_PATH))
-    if btn and (btn.Text or ""):find("Start Training") then
+    if btn then
+        if (btn.Text or ""):find("Start Training") then
+            ToggleTraining:FireServer(true)
+        end
+        -- if "Stop Training" it's already on, do nothing
+    else
+        -- can't read button, fire remote to ensure training is on
         ToggleTraining:FireServer(true)
     end
 
@@ -1843,14 +1870,20 @@ local function RunStoryLoop()
 
     EnsureTraining()
 
-    -- If already mid-combat on entry, finish it first then check prestige
+    -- Immediate prestige check on entry (handles toggle-on mid-run case)
+    -- Not in combat and already past Pucci stage → prestige right now
+    if PrestigeEnabled and not IsInStoryBattle() and IsOnPrestigeStage() then
+        FirePrestige(); task.wait(ACTION_CD)
+    end
+
+    -- If mid-combat on entry, finish it first then check prestige
     if IsInStoryBattle() then
         RunStoryBattleLoop(function() return StoryEnabled end)
         task.wait(ACTION_CD)
-        -- After combat: if prestige mode on and we just finished a prestige-eligible fight, prestige now
         if PrestigeEnabled and IsOnPrestigeStage() then
             FirePrestige(); task.wait(ACTION_CD)
         end
+    end
     end
 
     task.spawn(RunWorldBossScanner)
@@ -1883,19 +1916,14 @@ local function RunStoryLoop()
 end
 
 -- ================================================================
--- [[ AUTO DUNGEON LOOP ]]
+-- [[ AUTO DUNGEON LOOP ]] -- mirrors Proto A structure exactly
 -- ================================================================
 local function RunDungeonLoop()
-    -- Blind-fire story flee (safe if not in story)
+    -- Blind-fire story flee first (safe even if not in story)
     StoryUseSkill("Flee")
     task.wait(1)
 
-    -- enforce stand/style directly without calling FleeAnyActiveBattle again
-    DetectLoadoutFromInventory()
-    if CFG.dungeonStandName and CFG.dungeonStandName ~= "" then
-        EnsureStand(CFG.dungeonStandName)
-    end
-    EnsureStyle("ULF")
+    EnforceDungeonLoadout()
 
     while DungeonEnabled and not ScriptKilled do
         if CFG.dailyModeOn and CFG.dailyFloor then
@@ -1921,10 +1949,10 @@ local function RunDungeonLoop()
 
         if not IsInDungeonBattle() then
             StartDungeon()
-            task.wait(1)
+            task.wait(ACTION_CD)
             local waited = 0
-            while not IsInDungeonBattle() and waited < 8 do
-                task.wait(0.3); waited = waited + 0.3
+            while not IsInDungeonBattle() and waited < 5 do
+                task.wait(0.2); waited += 0.2
             end
         end
         if IsInDungeonBattle() then
@@ -1957,9 +1985,14 @@ PrestigeBtn.MouseButton1Click:Connect(function()
     PrestigeEnabled     = not PrestigeEnabled
     CFG.prestigeEnabled = PrestigeEnabled
     UpdatePrestigeVisuals()
-    -- The story loop checks PrestigeEnabled and IsOnPrestigeStage() at the top of each
-    -- iteration and after each combat. No restart needed - it will pick up the flag
-    -- on the very next iteration (after current combat ends if mid-fight).
+
+    -- If auto story is running, restart the loop immediately so it rescans prestige state
+    if StoryEnabled then
+        StoryEnabled = false
+        task.wait(0.3)
+        StoryEnabled = true
+        task.spawn(RunStoryLoop)
+    end
 end)
 
 StoryBtn.MouseButton1Click:Connect(function()
